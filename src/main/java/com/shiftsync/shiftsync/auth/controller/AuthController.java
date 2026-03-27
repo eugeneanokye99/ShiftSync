@@ -5,6 +5,7 @@ import com.shiftsync.shiftsync.auth.dto.LoginRequest;
 import com.shiftsync.shiftsync.auth.dto.RegisterRequest;
 import com.shiftsync.shiftsync.auth.dto.RegisterResponse;
 import com.shiftsync.shiftsync.auth.service.AuthService;
+import com.shiftsync.shiftsync.common.exception.UnauthorizedException;
 import com.shiftsync.shiftsync.common.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -41,17 +42,12 @@ public class AuthController {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid request parameters",
+                    description = "Invalid request parameters or duplicate email",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             ),
             @ApiResponse(
                     responseCode = "403",
                     description = "Access denied - HR_ADMIN role required",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "409",
-                    description = "Email already exists",
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
@@ -104,7 +100,11 @@ public class AuthController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
-    public ResponseEntity<AuthResponse> refresh(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<AuthResponse> refresh(@RequestHeader(value = "Authorization", required = false) String authHeader) {
+        if (authHeader == null || authHeader.isBlank() || !authHeader.startsWith("Bearer ") || authHeader.length() <= 7) {
+            throw new UnauthorizedException("Authorization header must contain a valid Bearer token");
+        }
+
         String token = authHeader.substring(7);
         AuthResponse response = authService.refresh(token);
         return ResponseEntity.ok(response);
