@@ -5,22 +5,693 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
 
-    <changeSet id="001-initial-schema" author="shiftsync">
-        <!-- Add your initial schema here -->
-        <!-- Example:
+    <!-- ============================================================================ -->
+    <!-- ENUM TYPES -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="001-create-enum-types" author="shiftsync">
+        <sql>
+            CREATE TYPE user_role AS ENUM ('EMPLOYEE', 'MANAGER', 'HR_ADMIN');
+            CREATE TYPE employment_type AS ENUM ('FULL_TIME', 'PART_TIME', 'CONTRACT');
+            CREATE TYPE leave_type AS ENUM ('ANNUAL', 'SICK', 'UNPAID');
+            CREATE TYPE leave_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
+            CREATE TYPE shift_status AS ENUM ('OPEN', 'CANCELLED');
+            CREATE TYPE swap_status AS ENUM ('PENDING_MANAGER_APPROVAL', 'APPROVED', 'REJECTED');
+            CREATE TYPE notification_type AS ENUM (
+                'SHIFT_ASSIGNED',
+                'SHIFT_REMOVED',
+                'SHIFT_CANCELLED',
+                'SHIFT_CHANGED',
+                'LEAVE_UPDATED',
+                'SWAP_OUTCOME',
+                'LEAVE_CONFLICT'
+            );
+            CREATE TYPE audit_action AS ENUM ('CREATE', 'UPDATE', 'DELETE');
+            CREATE TYPE day_of_week AS ENUM (
+                'MONDAY',
+                'TUESDAY',
+                'WEDNESDAY',
+                'THURSDAY',
+                'FRIDAY',
+                'SATURDAY',
+                'SUNDAY'
+            );
+        </sql>
+        <rollback>
+            DROP TYPE IF EXISTS day_of_week;
+            DROP TYPE IF EXISTS audit_action;
+            DROP TYPE IF EXISTS notification_type;
+            DROP TYPE IF EXISTS swap_status;
+            DROP TYPE IF EXISTS shift_status;
+            DROP TYPE IF EXISTS leave_status;
+            DROP TYPE IF EXISTS leave_type;
+            DROP TYPE IF EXISTS employment_type;
+            DROP TYPE IF EXISTS user_role;
+        </rollback>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- USERS TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="002-create-users-table" author="shiftsync">
         <createTable tableName="users">
-            <column name="id" type="bigint" autoIncrement="true">
+            <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="username" type="varchar(255)">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="email" type="varchar(255)">
                 <constraints nullable="false" unique="true"/>
             </column>
-            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="password_hash" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="full_name" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="role" type="user_role">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
-        -->
+        <createIndex tableName="users" indexName="idx_users_email">
+            <column name="email"/>
+        </createIndex>
+        <createIndex tableName="users" indexName="idx_users_role">
+            <column name="role"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- LOCATIONS TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="003-create-locations-table" author="shiftsync">
+        <createTable tableName="locations">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="varchar(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="address" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="max_headcount_per_shift" type="integer" defaultValue="50">
+                <constraints nullable="false"/>
+            </column>
+            <column name="active" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="locations" indexName="idx_locations_active">
+            <column name="active"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- DEPARTMENTS TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="004-create-departments-table" author="shiftsync">
+        <createTable tableName="departments">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="location_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_departments_location"
+                             references="locations(id)" deleteCascade="true"/>
+            </column>
+            <column name="name" type="varchar(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="departments" columnNames="location_id, name"
+                             constraintName="uk_departments_location_name"/>
+        <createIndex tableName="departments" indexName="idx_departments_location">
+            <column name="location_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- EMPLOYEES TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="005-create-employees-table" author="shiftsync">
+        <createTable tableName="employees">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints nullable="false" unique="true" foreignKeyName="fk_employees_user"
+                             references="users(id)" deleteCascade="true"/>
+            </column>
+            <column name="phone" type="varchar(50)"/>
+            <column name="employment_type" type="employment_type">
+                <constraints nullable="false"/>
+            </column>
+            <column name="department_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_employees_department"
+                             references="departments(id)"/>
+            </column>
+            <column name="location_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_employees_location"
+                             references="locations(id)"/>
+            </column>
+            <column name="skills" type="text[]"/>
+            <column name="contracted_weekly_hours" type="decimal(5,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hire_date" type="date" defaultValueComputed="CURRENT_DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="active" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deactivated_at" type="timestamp"/>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="employees" indexName="idx_employees_user">
+            <column name="user_id"/>
+        </createIndex>
+        <createIndex tableName="employees" indexName="idx_employees_department">
+            <column name="department_id"/>
+        </createIndex>
+        <createIndex tableName="employees" indexName="idx_employees_location">
+            <column name="location_id"/>
+        </createIndex>
+        <createIndex tableName="employees" indexName="idx_employees_active">
+            <column name="active"/>
+        </createIndex>
+        <createIndex tableName="employees" indexName="idx_employees_employment_type">
+            <column name="employment_type"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- MANAGER LOCATIONS TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="006-create-manager-locations-table" author="shiftsync">
+        <createTable tableName="manager_locations">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="manager_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_manager_locations_manager"
+                             references="employees(id)" deleteCascade="true"/>
+            </column>
+            <column name="location_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_manager_locations_location"
+                             references="locations(id)" deleteCascade="true"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="manager_locations" columnNames="manager_id, location_id"
+                             constraintName="uk_manager_locations"/>
+        <createIndex tableName="manager_locations" indexName="idx_manager_locations_manager">
+            <column name="manager_id"/>
+        </createIndex>
+        <createIndex tableName="manager_locations" indexName="idx_manager_locations_location">
+            <column name="location_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- RECURRING AVAILABILITY TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="007-create-recurring-availability-table" author="shiftsync">
+        <createTable tableName="recurring_availability">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="employee_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_recurring_availability_employee"
+                             references="employees(id)" deleteCascade="true"/>
+            </column>
+            <column name="day_of_week" type="day_of_week">
+                <constraints nullable="false"/>
+            </column>
+            <column name="start_time" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_time" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql>
+            ALTER TABLE recurring_availability ADD CONSTRAINT check_time_order CHECK (end_time > start_time);
+        </sql>
+        <createIndex tableName="recurring_availability" indexName="idx_recurring_availability_employee">
+            <column name="employee_id"/>
+        </createIndex>
+        <createIndex tableName="recurring_availability" indexName="idx_recurring_availability_day">
+            <column name="day_of_week"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- AVAILABILITY OVERRIDES TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="008-create-availability-overrides-table" author="shiftsync">
+        <createTable tableName="availability_overrides">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="employee_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_availability_overrides_employee"
+                             references="employees(id)" deleteCascade="true"/>
+            </column>
+            <column name="start_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reason" type="text"/>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql>
+            ALTER TABLE availability_overrides ADD CONSTRAINT check_date_order CHECK (end_date >= start_date);
+        </sql>
+        <createIndex tableName="availability_overrides" indexName="idx_availability_overrides_employee">
+            <column name="employee_id"/>
+        </createIndex>
+        <createIndex tableName="availability_overrides" indexName="idx_availability_overrides_dates">
+            <column name="start_date"/>
+            <column name="end_date"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- LEAVE REQUESTS TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="009-create-leave-requests-table" author="shiftsync">
+        <createTable tableName="leave_requests">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="employee_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_leave_requests_employee"
+                             references="employees(id)" deleteCascade="true"/>
+            </column>
+            <column name="start_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="leave_type" type="leave_type">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reason" type="text"/>
+            <column name="status" type="leave_status" defaultValue="PENDING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="hr_note" type="text"/>
+            <column name="approved_by" type="bigint">
+                <constraints foreignKeyName="fk_leave_requests_approved_by" references="users(id)"/>
+            </column>
+            <column name="approved_at" type="timestamp"/>
+            <column name="submitted_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql>
+            ALTER TABLE leave_requests ADD CONSTRAINT check_leave_date_order CHECK (end_date >= start_date);
+        </sql>
+        <createIndex tableName="leave_requests" indexName="idx_leave_requests_employee">
+            <column name="employee_id"/>
+        </createIndex>
+        <createIndex tableName="leave_requests" indexName="idx_leave_requests_status">
+            <column name="status"/>
+        </createIndex>
+        <createIndex tableName="leave_requests" indexName="idx_leave_requests_dates">
+            <column name="start_date"/>
+            <column name="end_date"/>
+        </createIndex>
+        <createIndex tableName="leave_requests" indexName="idx_leave_requests_submitted">
+            <column name="submitted_at"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- SHIFTS TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="010-create-shifts-table" author="shiftsync">
+        <createTable tableName="shifts">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="location_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shifts_location"
+                             references="locations(id)" deleteCascade="true"/>
+            </column>
+            <column name="department_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shifts_department"
+                             references="departments(id)" deleteCascade="true"/>
+            </column>
+            <column name="shift_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="start_time" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_time" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="required_skill" type="varchar(255)"/>
+            <column name="minimum_headcount" type="integer" defaultValue="1">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="shift_status" defaultValue="OPEN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shifts_created_by" references="users(id)"/>
+            </column>
+            <column name="cancelled_at" type="timestamp"/>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql>
+            ALTER TABLE shifts ADD CONSTRAINT check_shift_time_order CHECK (end_time > start_time);
+        </sql>
+        <createIndex tableName="shifts" indexName="idx_shifts_location">
+            <column name="location_id"/>
+        </createIndex>
+        <createIndex tableName="shifts" indexName="idx_shifts_department">
+            <column name="department_id"/>
+        </createIndex>
+        <createIndex tableName="shifts" indexName="idx_shifts_date">
+            <column name="shift_date"/>
+        </createIndex>
+        <createIndex tableName="shifts" indexName="idx_shifts_status">
+            <column name="status"/>
+        </createIndex>
+        <createIndex tableName="shifts" indexName="idx_shifts_location_date">
+            <column name="location_id"/>
+            <column name="shift_date"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- SHIFT ASSIGNMENTS TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="011-create-shift-assignments-table" author="shiftsync">
+        <createTable tableName="shift_assignments">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="shift_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shift_assignments_shift"
+                             references="shifts(id)" deleteCascade="true"/>
+            </column>
+            <column name="employee_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shift_assignments_employee"
+                             references="employees(id)" deleteCascade="true"/>
+            </column>
+            <column name="assigned_by" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shift_assignments_assigned_by"
+                             references="users(id)"/>
+            </column>
+            <column name="override_applied" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="override_reason" type="text"/>
+            <column name="assigned_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="shift_assignments" columnNames="shift_id, employee_id"
+                             constraintName="uk_shift_assignments"/>
+        <createIndex tableName="shift_assignments" indexName="idx_shift_assignments_shift">
+            <column name="shift_id"/>
+        </createIndex>
+        <createIndex tableName="shift_assignments" indexName="idx_shift_assignments_employee">
+            <column name="employee_id"/>
+        </createIndex>
+        <createIndex tableName="shift_assignments" indexName="idx_shift_assignments_assigned_at">
+            <column name="assigned_at"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- SWAP REQUESTS TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="012-create-swap-requests-table" author="shiftsync">
+        <createTable tableName="swap_requests">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="requesting_employee_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_swap_requests_requesting_employee"
+                             references="employees(id)" deleteCascade="true"/>
+            </column>
+            <column name="requesting_assignment_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_swap_requests_requesting_assignment"
+                             references="shift_assignments(id)" deleteCascade="true"/>
+            </column>
+            <column name="target_employee_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_swap_requests_target_employee"
+                             references="employees(id)" deleteCascade="true"/>
+            </column>
+            <column name="target_assignment_id" type="bigint">
+                <constraints foreignKeyName="fk_swap_requests_target_assignment"
+                             references="shift_assignments(id)" deleteCascade="true"/>
+            </column>
+            <column name="reason" type="text"/>
+            <column name="status" type="swap_status" defaultValue="PENDING_MANAGER_APPROVAL">
+                <constraints nullable="false"/>
+            </column>
+            <column name="manager_note" type="text"/>
+            <column name="reviewed_by" type="bigint">
+                <constraints foreignKeyName="fk_swap_requests_reviewed_by" references="users(id)"/>
+            </column>
+            <column name="reviewed_at" type="timestamp"/>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="swap_requests" indexName="idx_swap_requests_requesting_employee">
+            <column name="requesting_employee_id"/>
+        </createIndex>
+        <createIndex tableName="swap_requests" indexName="idx_swap_requests_target_employee">
+            <column name="target_employee_id"/>
+        </createIndex>
+        <createIndex tableName="swap_requests" indexName="idx_swap_requests_status">
+            <column name="status"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- NOTIFICATIONS TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="013-create-notifications-table" author="shiftsync">
+        <createTable tableName="notifications">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_notifications_user"
+                             references="users(id)" deleteCascade="true"/>
+            </column>
+            <column name="type" type="notification_type">
+                <constraints nullable="false"/>
+            </column>
+            <column name="message" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="entity_type" type="varchar(100)"/>
+            <column name="entity_id" type="bigint"/>
+            <column name="read" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="read_at" type="timestamp"/>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="notifications" indexName="idx_notifications_user">
+            <column name="user_id"/>
+        </createIndex>
+        <createIndex tableName="notifications" indexName="idx_notifications_read">
+            <column name="user_id"/>
+            <column name="read"/>
+        </createIndex>
+        <sql>
+            CREATE INDEX idx_notifications_created ON notifications(created_at DESC);
+        </sql>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- AUDIT LOGS TABLE -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="014-create-audit-logs-table" author="shiftsync">
+        <createTable tableName="audit_logs">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="entity_type" type="varchar(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="entity_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="action" type="audit_action">
+                <constraints nullable="false"/>
+            </column>
+            <column name="actor_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_audit_logs_actor" references="users(id)"/>
+            </column>
+            <column name="actor_role" type="user_role">
+                <constraints nullable="false"/>
+            </column>
+            <column name="before_state" type="jsonb"/>
+            <column name="after_state" type="jsonb"/>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="audit_logs" indexName="idx_audit_logs_entity">
+            <column name="entity_type"/>
+            <column name="entity_id"/>
+        </createIndex>
+        <createIndex tableName="audit_logs" indexName="idx_audit_logs_actor">
+            <column name="actor_id"/>
+        </createIndex>
+        <sql>
+            CREATE INDEX idx_audit_logs_created ON audit_logs(created_at DESC);
+        </sql>
+        <createIndex tableName="audit_logs" indexName="idx_audit_logs_entity_type">
+            <column name="entity_type"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ============================================================================ -->
+    <!-- TRIGGERS FOR UPDATED_AT -->
+    <!-- ============================================================================ -->
+
+    <changeSet id="015-create-updated-at-trigger-function" author="shiftsync">
+        <sql>
+            CREATE OR REPLACE FUNCTION update_updated_at_column()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                NEW.updated_at = CURRENT_TIMESTAMP;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        </sql>
+        <rollback>
+            DROP FUNCTION IF EXISTS update_updated_at_column();
+        </rollback>
+    </changeSet>
+
+    <changeSet id="016-create-updated-at-triggers" author="shiftsync">
+        <sql>
+            CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+                FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_locations_updated_at BEFORE UPDATE ON locations
+                FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_departments_updated_at BEFORE UPDATE ON departments
+                FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_employees_updated_at BEFORE UPDATE ON employees
+                FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_recurring_availability_updated_at BEFORE UPDATE ON recurring_availability
+                FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_availability_overrides_updated_at BEFORE UPDATE ON availability_overrides
+                FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_leave_requests_updated_at BEFORE UPDATE ON leave_requests
+                FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_shifts_updated_at BEFORE UPDATE ON shifts
+                FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_shift_assignments_updated_at BEFORE UPDATE ON shift_assignments
+                FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+            CREATE TRIGGER update_swap_requests_updated_at BEFORE UPDATE ON swap_requests
+                FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        </sql>
+        <rollback>
+            DROP TRIGGER IF EXISTS update_swap_requests_updated_at ON swap_requests;
+            DROP TRIGGER IF EXISTS update_shift_assignments_updated_at ON shift_assignments;
+            DROP TRIGGER IF EXISTS update_shifts_updated_at ON shifts;
+            DROP TRIGGER IF EXISTS update_leave_requests_updated_at ON leave_requests;
+            DROP TRIGGER IF EXISTS update_availability_overrides_updated_at ON availability_overrides;
+            DROP TRIGGER IF EXISTS update_recurring_availability_updated_at ON recurring_availability;
+            DROP TRIGGER IF EXISTS update_employees_updated_at ON employees;
+            DROP TRIGGER IF EXISTS update_departments_updated_at ON departments;
+            DROP TRIGGER IF EXISTS update_locations_updated_at ON locations;
+            DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+        </rollback>
     </changeSet>
 
 </databaseChangeLog>
