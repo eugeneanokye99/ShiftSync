@@ -1,0 +1,29 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches: [ "main", "develop", "feature/**" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Java 25
+        run: |
+          wget https://download.oracle.com/java/25/latest/jdk-25_linux-x64_bin.tar.gz -O jdk25.tar.gz
+          sudo mkdir -p /opt/java
+          sudo tar -xzf jdk25.tar.gz -C /opt/java
+          echo "JAVA_HOME=/opt/java/jdk-25" >> $GITHUB_ENV
+          echo "/opt/java/jdk-25/bin" >> $GITHUB_PATH
+
+      - name: Verify Java
+        run: java -version
+
+      - name: Build and Verify
+        run: mvn clean verify
