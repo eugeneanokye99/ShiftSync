@@ -16,14 +16,20 @@ jobs:
 
       - name: Install Java 25
         run: |
-          wget https://download.oracle.com/java/25/latest/jdk-25_linux-x64_bin.tar.gz -O jdk25.tar.gz
-          sudo mkdir -p /opt/java
-          sudo tar -xzf jdk25.tar.gz -C /opt/java
-          echo "JAVA_HOME=/opt/java/jdk-25" >> $GITHUB_ENV
-          echo "/opt/java/jdk-25/bin" >> $GITHUB_PATH
+              wget https://download.oracle.com/java/25/latest/jdk-25_linux-x64_bin.tar.gz -O jdk25.tar.gz
+              sudo mkdir -p /opt/java
+              sudo tar -xzf jdk25.tar.gz -C /opt/java
+              # List the directory to see exact JDK folder name
+              ls -l /opt/java
+              # Set JAVA_HOME and add bin to PATH dynamically
+              echo "JAVA_HOME=/opt/java/$(ls /opt/java | grep jdk-25*)" >> $GITHUB_ENV
+              echo "/opt/java/$(ls /opt/java | grep jdk-25*)/bin" >> $GITHUB_PATH
 
       - name: Verify Java
-        run: java -version
+        run: |
+          echo $JAVA_HOME
+          java -version
+          javac -version
 
       - name: Build and Verify
         run: mvn clean verify
