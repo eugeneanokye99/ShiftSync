@@ -142,9 +142,6 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public EmployeeResponse updateMyProfile(Long actorUserId, UpdateMyProfileRequest request) {
-        if (request.employmentType() != null || request.departmentId() != null || request.locationId() != null) {
-            throw new AccessDeniedException("You cannot update employment type, department, or location");
-        }
 
         Employee employee = employeeRepository.findByUserId(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found"));

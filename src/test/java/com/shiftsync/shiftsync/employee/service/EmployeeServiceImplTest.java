@@ -201,19 +201,21 @@ class EmployeeServiceImplTest {
     }
 
     @Test
-    void updateMyProfile_RestrictedFields_ThrowsAccessDeniedException() {
+    void updateMyProfile_UpdatesAllowedFields() {
         UpdateMyProfileRequest updateRequest = new UpdateMyProfileRequest(
-                null,
-                null,
-                null,
-                EmploymentType.CONTRACT,
-                null,
-                null
+                "+233111111111",
+                List.of("barista", "cashier"),
+                false
         );
 
-        assertThatThrownBy(() -> employeeService.updateMyProfile(1L, updateRequest))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessage("You cannot update employment type, department, or location");
+        when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(employee));
+        when(employeeRepository.save(any(Employee.class))).thenReturn(employee);
+        when(employeeMapper.toResponse(employee)).thenReturn(response);
+
+        EmployeeResponse updated = employeeService.updateMyProfile(1L, updateRequest);
+
+        assertThat(updated.employeeId()).isEqualTo(10L);
+        verify(employeeRepository).save(employee);
     }
 
     @Test

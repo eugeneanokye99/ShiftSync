@@ -141,7 +141,7 @@ public class EmployeeController {
     @Operation(summary = "Update my employee profile", description = "Updates phone, skills, and notification preference for the authenticated employee.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Profile updated", content = @Content(schema = @Schema(implementation = EmployeeResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Restricted fields update attempt", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            @ApiResponse(responseCode = "403", description = "Access denied", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<EmployeeResponse> updateMyProfile(
             Authentication authentication,
