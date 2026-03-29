@@ -5,6 +5,11 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
 
+    <!--
+         Kept intentionally for databases that applied 001 before notification_enabled
+         was introduced there. In fresh environments this changeset is MARK_RAN by
+         precondition; in older environments it applies the missing column.
+    -->
     <changeSet id="002-add-employees-notification-enabled" author="shiftsync">
         <preConditions onFail="MARK_RAN">
             <not>
