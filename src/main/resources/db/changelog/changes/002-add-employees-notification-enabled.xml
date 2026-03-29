@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!--
+         Kept intentionally for databases that applied 001 before notification_enabled
+         was introduced there. In fresh environments this changeset is MARK_RAN by
+         precondition; in older environments it applies the missing column.
+    -->
+    <changeSet id="002-add-employees-notification-enabled" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="employees" columnName="notification_enabled"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="employees">
+            <column name="notification_enabled" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <rollback>
+            <dropColumn tableName="employees" columnName="notification_enabled"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
+

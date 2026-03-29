@@ -12,31 +12,57 @@
     <changeSet id="001-create-enum-types" author="shiftsync">
         <validCheckSum>ANY</validCheckSum>
         <sql>
-            CREATE TYPE IF NOT EXISTS user_role AS ENUM ('EMPLOYEE', 'MANAGER', 'HR_ADMIN');
-            CREATE TYPE IF NOT EXISTS employment_type AS ENUM ('FULL_TIME', 'PART_TIME', 'CONTRACT');
-            CREATE TYPE IF NOT EXISTS leave_type AS ENUM ('ANNUAL', 'SICK', 'UNPAID');
-            CREATE TYPE IF NOT EXISTS leave_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
-            CREATE TYPE IF NOT EXISTS shift_status AS ENUM ('OPEN', 'CANCELLED');
-            CREATE TYPE IF NOT EXISTS swap_status AS ENUM ('PENDING_MANAGER_APPROVAL', 'APPROVED', 'REJECTED');
-            CREATE TYPE IF NOT EXISTS notification_type AS ENUM (
-                'SHIFT_ASSIGNED',
-                'SHIFT_REMOVED',
-                'SHIFT_CANCELLED',
-                'SHIFT_CHANGED',
-                'LEAVE_UPDATED',
-                'SWAP_OUTCOME',
-                'LEAVE_CONFLICT'
-            );
-            CREATE TYPE IF NOT EXISTS audit_action AS ENUM ('CREATE', 'UPDATE', 'DELETE');
-            CREATE TYPE IF NOT EXISTS day_of_week AS ENUM (
-                'MONDAY',
-                'TUESDAY',
-                'WEDNESDAY',
-                'THURSDAY',
-                'FRIDAY',
-                'SATURDAY',
-                'SUNDAY'
-            );
+            DO $$ BEGIN
+                CREATE TYPE user_role AS ENUM ('EMPLOYEE', 'MANAGER', 'HR_ADMIN');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+            DO $$ BEGIN
+                CREATE TYPE employment_type AS ENUM ('FULL_TIME', 'PART_TIME', 'CONTRACT');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+            DO $$ BEGIN
+                CREATE TYPE leave_type AS ENUM ('ANNUAL', 'SICK', 'UNPAID');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+            DO $$ BEGIN
+                CREATE TYPE leave_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+            DO $$ BEGIN
+                CREATE TYPE shift_status AS ENUM ('OPEN', 'CANCELLED');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+            DO $$ BEGIN
+                CREATE TYPE swap_status AS ENUM ('PENDING_MANAGER_APPROVAL', 'APPROVED', 'REJECTED');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+            DO $$ BEGIN
+                CREATE TYPE notification_type AS ENUM (
+                    'SHIFT_ASSIGNED',
+                    'SHIFT_REMOVED',
+                    'SHIFT_CANCELLED',
+                    'SHIFT_CHANGED',
+                    'LEAVE_UPDATED',
+                    'SWAP_OUTCOME',
+                    'LEAVE_CONFLICT'
+                );
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+            DO $$ BEGIN
+                CREATE TYPE audit_action AS ENUM ('CREATE', 'UPDATE', 'DELETE');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+            DO $$ BEGIN
+                CREATE TYPE day_of_week AS ENUM (
+                    'MONDAY',
+                    'TUESDAY',
+                    'WEDNESDAY',
+                    'THURSDAY',
+                    'FRIDAY',
+                    'SATURDAY',
+                    'SUNDAY'
+                );
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
         </sql>
         <rollback>
             DROP TYPE IF EXISTS day_of_week;
@@ -56,6 +82,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="002-create-users-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="users"/>
+            </not>
+        </preConditions>
         <createTable tableName="users">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -92,6 +123,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="003-create-locations-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="locations"/>
+            </not>
+        </preConditions>
         <createTable tableName="locations">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -125,6 +161,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="004-create-departments-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="departments"/>
+            </not>
+        </preConditions>
         <createTable tableName="departments">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -155,6 +196,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="005-create-employees-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="employees"/>
+            </not>
+        </preConditions>
         <createTable tableName="employees">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -183,6 +229,9 @@
                 <constraints nullable="false"/>
             </column>
             <column name="active" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="notification_enabled" type="boolean" defaultValueBoolean="true">
                 <constraints nullable="false"/>
             </column>
             <column name="deactivated_at" type="timestamp"/>
@@ -215,6 +264,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="006-create-manager-locations-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="manager_locations"/>
+            </not>
+        </preConditions>
         <createTable tableName="manager_locations">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -246,6 +300,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="007-create-recurring-availability-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="recurring_availability"/>
+            </not>
+        </preConditions>
         <createTable tableName="recurring_availability">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -286,6 +345,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="008-create-availability-overrides-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="availability_overrides"/>
+            </not>
+        </preConditions>
         <createTable tableName="availability_overrides">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -325,6 +389,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="009-create-leave-requests-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="leave_requests"/>
+            </not>
+        </preConditions>
         <createTable tableName="leave_requests">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -384,6 +453,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="010-create-shifts-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="shifts"/>
+            </not>
+        </preConditions>
         <createTable tableName="shifts">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -449,6 +523,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="011-create-shift-assignments-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="shift_assignments"/>
+            </not>
+        </preConditions>
         <createTable tableName="shift_assignments">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -497,6 +576,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="012-create-swap-requests-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="swap_requests"/>
+            </not>
+        </preConditions>
         <createTable tableName="swap_requests">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -549,6 +633,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="013-create-notifications-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="notifications"/>
+            </not>
+        </preConditions>
         <createTable tableName="notifications">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -590,6 +679,11 @@
     <!-- ============================================================================ -->
 
     <changeSet id="014-create-audit-logs-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="audit_logs"/>
+            </not>
+        </preConditions>
         <createTable tableName="audit_logs">
             <column name="id" type="bigserial">
                 <constraints primaryKey="true" nullable="false"/>
@@ -635,7 +729,7 @@
     <!-- ============================================================================ -->
 
     <changeSet id="015-create-updated-at-trigger-function" author="shiftsync">
-        <sql>
+        <sql splitStatements="false">
             CREATE OR REPLACE FUNCTION update_updated_at_column()
             RETURNS TRIGGER AS $$
             BEGIN
@@ -651,6 +745,17 @@
 
     <changeSet id="016-create-updated-at-triggers" author="shiftsync">
         <sql>
+            DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+            DROP TRIGGER IF EXISTS update_locations_updated_at ON locations;
+            DROP TRIGGER IF EXISTS update_departments_updated_at ON departments;
+            DROP TRIGGER IF EXISTS update_employees_updated_at ON employees;
+            DROP TRIGGER IF EXISTS update_recurring_availability_updated_at ON recurring_availability;
+            DROP TRIGGER IF EXISTS update_availability_overrides_updated_at ON availability_overrides;
+            DROP TRIGGER IF EXISTS update_leave_requests_updated_at ON leave_requests;
+            DROP TRIGGER IF EXISTS update_shifts_updated_at ON shifts;
+            DROP TRIGGER IF EXISTS update_shift_assignments_updated_at ON shift_assignments;
+            DROP TRIGGER IF EXISTS update_swap_requests_updated_at ON swap_requests;
+
             CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
                 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -694,5 +799,6 @@
             DROP TRIGGER IF EXISTS update_users_updated_at ON users;
         </rollback>
     </changeSet>
+
 
 </databaseChangeLog>
