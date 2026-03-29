@@ -1,5 +1,6 @@
 package com.shiftsync.shiftsync.config.security;
 
+import com.shiftsync.shiftsync.common.response.ErrorResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +20,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @EnableWebSecurity
@@ -28,6 +30,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomUserDetailsService userDetailsService;
+    private final ObjectMapper objectMapper;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
@@ -38,22 +41,22 @@ public class SecurityConfig {
                         .authenticationEntryPoint((_, response, _) -> {
                             response.setStatus(HttpStatus.UNAUTHORIZED.value());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            response.getWriter().write(
-                                    "{\"timestamp\":\"" + java.time.LocalDateTime.now() + "\"," +
-                                    "\"status\":401," +
-                                    "\"error\":\"Unauthorized\"," +
-                                    "\"message\":\"Authentication required. Please provide a valid JWT token.\"}"
+                            ErrorResponse err = new ErrorResponse(
+                                    HttpStatus.UNAUTHORIZED.value(),
+                                    "Unauthorized",
+                                    "Authentication required. Please provide a valid JWT token."
                             );
+                            response.getWriter().write(objectMapper.writeValueAsString(err));
                         })
                         .accessDeniedHandler((_, response, _) -> {
                             response.setStatus(HttpStatus.FORBIDDEN.value());
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            response.getWriter().write(
-                                    "{\"timestamp\":\"" + java.time.LocalDateTime.now() + "\"," +
-                                    "\"status\":403," +
-                                    "\"error\":\"Forbidden\"," +
-                                    "\"message\":\"You do not have permission to access this resource.\"}"
+                            ErrorResponse err = new ErrorResponse(
+                                    HttpStatus.FORBIDDEN.value(),
+                                    "Forbidden",
+                                    "You do not have permission to access this resource."
                             );
+                            response.getWriter().write(objectMapper.writeValueAsString(err));
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
