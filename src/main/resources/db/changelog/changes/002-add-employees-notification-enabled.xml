@@ -6,6 +6,11 @@
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
 
     <changeSet id="002-add-employees-notification-enabled" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="employees" columnName="notification_enabled"/>
+            </not>
+        </preConditions>
         <addColumn tableName="employees">
             <column name="notification_enabled" type="boolean" defaultValueBoolean="true">
                 <constraints nullable="false"/>
