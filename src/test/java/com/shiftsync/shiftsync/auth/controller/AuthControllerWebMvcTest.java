@@ -118,6 +118,28 @@ class AuthControllerWebMvcTest {
     }
 
     @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void register_InvalidRoleValue_ReturnsBadRequestUnreadableBody() throws Exception {
+        String body = """
+                {
+                  "fullName": "Test User",
+                  "email": "test@shiftsync.com",
+                  "password": "Password@123",
+                  "role": "SUPER_USER"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Malformed or unreadable request body"));
+
+        verify(authService, never()).register(any(RegisterRequest.class));
+    }
+
+    @Test
     void login_InvalidCredentials_ReturnsUnauthorized() throws Exception {
         String body = """
                 {
