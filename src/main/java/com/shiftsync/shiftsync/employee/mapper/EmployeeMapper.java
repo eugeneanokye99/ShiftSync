@@ -23,6 +23,7 @@ public class EmployeeMapper {
                 employee.getLocation().getId(),
                 employee.getLocation().getName(),
                 employee.getSkills() == null ? Collections.emptyList() : Arrays.asList(employee.getSkills()),
+                employee.getNotificationEnabled(),
                 employee.getContractedWeeklyHours(),
                 employee.getHireDate(),
                 employee.getActive()

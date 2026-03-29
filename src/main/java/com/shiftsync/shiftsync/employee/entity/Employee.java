@@ -74,6 +74,9 @@ public class Employee {
     @Column(name = "active", nullable = false)
     private Boolean active;
 
+    @Column(name = "notification_enabled", nullable = false)
+    private Boolean notificationEnabled;
+
     @Column(name = "deactivated_at")
     private LocalDateTime deactivatedAt;
 
@@ -90,6 +93,9 @@ public class Employee {
         }
         if (active == null) {
             active = true;
+        }
+        if (notificationEnabled == null) {
+            notificationEnabled = true;
         }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();

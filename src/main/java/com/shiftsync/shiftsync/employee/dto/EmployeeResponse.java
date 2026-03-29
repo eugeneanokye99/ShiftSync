@@ -19,6 +19,7 @@ public record EmployeeResponse(
         Long locationId,
         String locationName,
         List<String> skills,
+        Boolean notificationEnabled,
         BigDecimal contractedWeeklyHours,
         LocalDate hireDate,
         Boolean active

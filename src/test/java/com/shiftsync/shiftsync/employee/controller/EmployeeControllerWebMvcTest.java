@@ -24,7 +24,9 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -70,7 +72,7 @@ class EmployeeControllerWebMvcTest {
     }
 
     @Test
-    @WithMockUser(roles = "EMPLOYEE")
+    @WithMockUser(username = "2", roles = "EMPLOYEE")
     void createEmployee_WrongRole_ReturnsForbidden() throws Exception {
         String body = """
                 {
@@ -89,7 +91,7 @@ class EmployeeControllerWebMvcTest {
     }
 
     @Test
-    @WithMockUser(roles = "HR_ADMIN")
+    @WithMockUser(username = "1", roles = "HR_ADMIN")
     void createEmployee_Success_ReturnsCreated() throws Exception {
         EmployeeResponse response = new EmployeeResponse(
                 10L,
@@ -103,6 +105,7 @@ class EmployeeControllerWebMvcTest {
                 3L,
                 "Airport Branch",
                 List.of("barista"),
+                true,
                 new BigDecimal("40.00"),
                 LocalDate.of(2026, 1, 1),
                 true
@@ -132,7 +135,7 @@ class EmployeeControllerWebMvcTest {
     }
 
     @Test
-    @WithMockUser(roles = "MANAGER")
+    @WithMockUser(username = "11", roles = "MANAGER")
     void getEmployees_ManagerRole_ReturnsOk() throws Exception {
         EmployeeResponse employee = new EmployeeResponse(
                 10L,
@@ -146,19 +149,20 @@ class EmployeeControllerWebMvcTest {
                 3L,
                 "Airport Branch",
                 List.of("barista"),
+                true,
                 new BigDecimal("40.00"),
                 LocalDate.of(2026, 1, 1),
                 true
         );
 
         EmployeePageResponse pageResponse = new EmployeePageResponse(List.of(employee), 1, 1, 0);
-        when(employeeService.getEmployees(anyInt(), anyInt(), anyString(), anyString())).thenReturn(pageResponse);
+        when(employeeService.getEmployees(anyLong(), anyBoolean(), any(), any(), any(), any(), anyInt(), anyInt(), anyString()))
+                .thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/v1/employees")
                         .param("page", "0")
                         .param("size", "10")
-                        .param("sortBy", "name")
-                        .param("direction", "asc"))
+                        .param("sortBy", "name"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.totalPages").value(1))
@@ -167,12 +171,130 @@ class EmployeeControllerWebMvcTest {
     }
 
     @Test
-    @WithMockUser(roles = "EMPLOYEE")
+    @WithMockUser(username = "3", roles = "EMPLOYEE")
     void getEmployees_EmployeeRole_ReturnsForbidden() throws Exception {
         mockMvc.perform(get("/api/v1/employees"))
                 .andExpect(status().isForbidden());
 
-        verify(employeeService, never()).getEmployees(anyInt(), anyInt(), anyString(), anyString());
+        verify(employeeService, never()).getEmployees(anyLong(), anyBoolean(), any(), any(), any(), any(), anyInt(), anyInt(), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void getMyProfile_ReturnsOk() throws Exception {
+        EmployeeResponse response = new EmployeeResponse(
+                20L,
+                5L,
+                "Employee One",
+                UserRole.EMPLOYEE,
+                "+233111111111",
+                EmploymentType.PART_TIME,
+                2L,
+                "Kitchen",
+                3L,
+                "Airport Branch",
+                List.of("cashier"),
+                true,
+                new BigDecimal("20.00"),
+                LocalDate.of(2026, 1, 1),
+                true
+        );
+        when(employeeService.getMyProfile(5L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/employees/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(5));
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void updateMyProfile_ReturnsOk() throws Exception {
+        EmployeeResponse response = new EmployeeResponse(
+                20L,
+                5L,
+                "Employee One",
+                UserRole.EMPLOYEE,
+                "+233999999999",
+                EmploymentType.PART_TIME,
+                2L,
+                "Kitchen",
+                3L,
+                "Airport Branch",
+                List.of("cashier", "barista"),
+                false,
+                new BigDecimal("20.00"),
+                LocalDate.of(2026, 1, 1),
+                true
+        );
+        when(employeeService.updateMyProfile(anyLong(), any())).thenReturn(response);
+
+        String body = """
+                {
+                  "phone": "+233999999999",
+                  "skills": ["cashier", "barista"],
+                  "notificationEnabled": false
+                }
+                """;
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/employees/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notificationEnabled").value(false));
+    }
+
+    @Test
+    @WithMockUser(username = "11", roles = "MANAGER")
+    void getEmployeeById_Manager_ReturnsOk() throws Exception {
+        EmployeeResponse response = new EmployeeResponse(
+                20L,
+                5L,
+                "Employee One",
+                UserRole.EMPLOYEE,
+                "+233111111111",
+                EmploymentType.PART_TIME,
+                2L,
+                "Kitchen",
+                3L,
+                "Airport Branch",
+                List.of("cashier"),
+                true,
+                new BigDecimal("20.00"),
+                LocalDate.of(2026, 1, 1),
+                true
+        );
+        when(employeeService.getEmployeeById(11L, true, 20L)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/employees/20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.employeeId").value(20));
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "HR_ADMIN")
+    void deactivateEmployee_HrAdmin_ReturnsOk() throws Exception {
+        EmployeeResponse response = new EmployeeResponse(
+                20L,
+                5L,
+                "Employee One",
+                UserRole.EMPLOYEE,
+                "+233111111111",
+                EmploymentType.PART_TIME,
+                2L,
+                "Kitchen",
+                3L,
+                "Airport Branch",
+                List.of("cashier"),
+                true,
+                new BigDecimal("20.00"),
+                LocalDate.of(2026, 1, 1),
+                false
+        );
+        when(employeeService.deactivateEmployee(20L)).thenReturn(response);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/employees/20/deactivate"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
     }
 }
 

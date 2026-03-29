@@ -104,6 +104,7 @@ CREATE TABLE employees (
     contracted_weekly_hours DECIMAL(5,2) NOT NULL,
     hire_date DATE NOT NULL DEFAULT CURRENT_DATE,
     active BOOLEAN NOT NULL DEFAULT TRUE,
+    notification_enabled BOOLEAN NOT NULL DEFAULT TRUE,
     deactivated_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

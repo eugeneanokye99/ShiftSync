@@ -11,11 +11,13 @@ import com.shiftsync.shiftsync.department.repository.DepartmentRepository;
 import com.shiftsync.shiftsync.employee.dto.CreateEmployeeRequest;
 import com.shiftsync.shiftsync.employee.dto.EmployeePageResponse;
 import com.shiftsync.shiftsync.employee.dto.EmployeeResponse;
+import com.shiftsync.shiftsync.employee.dto.UpdateMyProfileRequest;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.mapper.EmployeeMapper;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.employee.service.impl.EmployeeServiceImpl;
 import com.shiftsync.shiftsync.location.entity.Location;
+import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
 import com.shiftsync.shiftsync.location.repository.LocationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,9 +29,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,6 +58,9 @@ class EmployeeServiceImplTest {
 
     @Mock
     private LocationRepository locationRepository;
+
+    @Mock
+    private ManagerLocationRepository managerLocationRepository;
 
     @Mock
     private EmployeeMapper employeeMapper;
@@ -124,6 +131,7 @@ class EmployeeServiceImplTest {
                 3L,
                 "Airport Branch",
                 List.of("barista"),
+                true,
                 new BigDecimal("40.00"),
                 LocalDate.of(2026, 1, 1),
                 true
@@ -170,15 +178,80 @@ class EmployeeServiceImplTest {
     @Test
     void getEmployees_ReturnsPageResponse() {
         Page<Employee> page = new PageImpl<>(List.of(employee), PageRequest.of(0, 10), 1);
-        when(employeeRepository.findAll(any(Pageable.class))).thenReturn(page);
+        when(employeeRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(Pageable.class))).thenReturn(page);
         when(employeeMapper.toResponse(employee)).thenReturn(response);
 
-        EmployeePageResponse result = employeeService.getEmployees(0, 10, "name", "asc");
+        EmployeePageResponse result = employeeService.getEmployees(
+                1L,
+                false,
+                null,
+                null,
+                null,
+                true,
+                0,
+                10,
+                "name"
+        );
 
         assertThat(result.totalElements()).isEqualTo(1);
         assertThat(result.totalPages()).isEqualTo(1);
         assertThat(result.currentPage()).isEqualTo(0);
         assertThat(result.content()).hasSize(1);
+    }
+
+    @Test
+    void updateMyProfile_RestrictedFields_ThrowsAccessDeniedException() {
+        UpdateMyProfileRequest updateRequest = new UpdateMyProfileRequest(
+                null,
+                null,
+                null,
+                EmploymentType.CONTRACT,
+                null,
+                null
+        );
+
+        assertThatThrownBy(() -> employeeService.updateMyProfile(1L, updateRequest))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("You cannot update employment type, department, or location");
+    }
+
+    @Test
+    void deactivateEmployee_AlreadyInactive_ThrowsDuplicateResourceException() {
+        employee.setActive(false);
+        employee.setDeactivatedAt(LocalDateTime.now());
+        when(employeeRepository.findById(10L)).thenReturn(Optional.of(employee));
+
+        assertThatThrownBy(() -> employeeService.deactivateEmployee(10L))
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessage("Employee is already inactive");
+    }
+
+    @Test
+    void getEmployeeById_ManagerOutsideAssignedLocation_ThrowsAccessDeniedException() {
+        User managerUser = User.builder()
+                .id(99L)
+                .email("manager@shiftsync.com")
+                .fullName("Manager One")
+                .passwordHash("hash")
+                .role(UserRole.MANAGER)
+                .build();
+        Employee managerEmployee = Employee.builder()
+                .id(77L)
+                .user(managerUser)
+                .department(department)
+                .location(location)
+                .employmentType(EmploymentType.FULL_TIME)
+                .contractedWeeklyHours(new BigDecimal("40.00"))
+                .active(true)
+                .build();
+
+        when(employeeRepository.findById(10L)).thenReturn(Optional.of(employee));
+        when(employeeRepository.findByUserId(99L)).thenReturn(Optional.of(managerEmployee));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(77L)).thenReturn(List.of(99L));
+
+        assertThatThrownBy(() -> employeeService.getEmployeeById(99L, true, 10L))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("You can only view employees at your assigned locations");
     }
 }
 
