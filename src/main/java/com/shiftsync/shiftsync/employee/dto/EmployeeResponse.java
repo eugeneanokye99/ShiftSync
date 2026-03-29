@@ -11,6 +11,7 @@ public record EmployeeResponse(
         Long employeeId,
         Long userId,
         String fullName,
+        String email,
         UserRole role,
         String phone,
         EmploymentType employmentType,

@@ -15,6 +15,7 @@ public class EmployeeMapper {
                 employee.getId(),
                 employee.getUser().getId(),
                 employee.getUser().getFullName(),
+                employee.getUser().getEmail(),
                 employee.getUser().getRole(),
                 employee.getPhone(),
                 employee.getEmploymentType(),

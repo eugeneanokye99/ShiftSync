@@ -123,6 +123,7 @@ class EmployeeServiceImplTest {
                 10L,
                 1L,
                 "Jane Doe",
+                "jane@shiftsync.com",
                 UserRole.EMPLOYEE,
                 "+233000000000",
                 EmploymentType.FULL_TIME,
