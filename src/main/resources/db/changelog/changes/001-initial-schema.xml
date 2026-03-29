@@ -10,14 +10,15 @@
     <!-- ============================================================================ -->
 
     <changeSet id="001-create-enum-types" author="shiftsync">
+        <validCheckSum>ANY</validCheckSum>
         <sql>
-            CREATE TYPE user_role AS ENUM ('EMPLOYEE', 'MANAGER', 'HR_ADMIN');
-            CREATE TYPE employment_type AS ENUM ('FULL_TIME', 'PART_TIME', 'CONTRACT');
-            CREATE TYPE leave_type AS ENUM ('ANNUAL', 'SICK', 'UNPAID');
-            CREATE TYPE leave_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
-            CREATE TYPE shift_status AS ENUM ('OPEN', 'CANCELLED');
-            CREATE TYPE swap_status AS ENUM ('PENDING_MANAGER_APPROVAL', 'APPROVED', 'REJECTED');
-            CREATE TYPE notification_type AS ENUM (
+            CREATE TYPE IF NOT EXISTS user_role AS ENUM ('EMPLOYEE', 'MANAGER', 'HR_ADMIN');
+            CREATE TYPE IF NOT EXISTS employment_type AS ENUM ('FULL_TIME', 'PART_TIME', 'CONTRACT');
+            CREATE TYPE IF NOT EXISTS leave_type AS ENUM ('ANNUAL', 'SICK', 'UNPAID');
+            CREATE TYPE IF NOT EXISTS leave_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'CANCELLED');
+            CREATE TYPE IF NOT EXISTS shift_status AS ENUM ('OPEN', 'CANCELLED');
+            CREATE TYPE IF NOT EXISTS swap_status AS ENUM ('PENDING_MANAGER_APPROVAL', 'APPROVED', 'REJECTED');
+            CREATE TYPE IF NOT EXISTS notification_type AS ENUM (
                 'SHIFT_ASSIGNED',
                 'SHIFT_REMOVED',
                 'SHIFT_CANCELLED',
@@ -26,8 +27,8 @@
                 'SWAP_OUTCOME',
                 'LEAVE_CONFLICT'
             );
-            CREATE TYPE audit_action AS ENUM ('CREATE', 'UPDATE', 'DELETE');
-            CREATE TYPE day_of_week AS ENUM (
+            CREATE TYPE IF NOT EXISTS audit_action AS ENUM ('CREATE', 'UPDATE', 'DELETE');
+            CREATE TYPE IF NOT EXISTS day_of_week AS ENUM (
                 'MONDAY',
                 'TUESDAY',
                 'WEDNESDAY',
