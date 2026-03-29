@@ -13,7 +13,8 @@ public final class EmployeeSpecification {
             Long locationId,
             EmploymentType employmentType,
             Boolean active,
-            List<Long> locationScope
+            List<Long> locationScope,
+            boolean defaultLastNameSort
     ) {
         return (root, query, cb) -> {
             var predicate = cb.conjunction();
@@ -40,6 +41,18 @@ public final class EmployeeSpecification {
                 } else {
                     predicate = cb.and(predicate, root.get("location").get("id").in(locationScope));
                 }
+            }
+
+            if (defaultLastNameSort && !Long.class.equals(query.getResultType())) {
+                var fullName = root.get("user").get("fullName");
+                var lastName = cb.function(
+                        "regexp_replace",
+                        String.class,
+                        fullName,
+                        cb.literal("^.*\\s"),
+                        cb.literal("")
+                );
+                query.orderBy(cb.asc(lastName), cb.asc(fullName));
             }
 
             return predicate;

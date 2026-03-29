@@ -105,7 +105,7 @@ public class EmployeeController {
             @RequestParam(defaultValue = "true") Boolean active,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "name") String sortBy
+            @RequestParam(defaultValue = "lastName") String sortBy
     ) {
         Long actorUserId = getCurrentUserId(authentication);
         boolean isManager = hasRole(authentication.getAuthorities());

@@ -102,9 +102,19 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         Boolean activeFilter = active == null ? Boolean.TRUE : active;
 
-        Pageable pageable = PageRequest.of(page, size, buildSort(sortBy));
+        boolean useDefaultLastNameSort = sortBy == null || sortBy.isBlank() || "lastName".equalsIgnoreCase(sortBy);
+        Pageable pageable = useDefaultLastNameSort
+                ? PageRequest.of(page, size)
+                : PageRequest.of(page, size, buildSort(sortBy));
         Page<Employee> employees = employeeRepository.findAll(
-                EmployeeSpecification.withFilters(departmentId, locationId, employmentType, activeFilter, scopedLocationIds),
+                EmployeeSpecification.withFilters(
+                        departmentId,
+                        locationId,
+                        employmentType,
+                        activeFilter,
+                        scopedLocationIds,
+                        useDefaultLastNameSort
+                ),
                 pageable
         );
 
@@ -189,9 +199,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private Sort buildSort(String sortBy) {
-        String sortField = "name".equalsIgnoreCase(sortBy) ? "user.fullName"
-                : "hireDate".equalsIgnoreCase(sortBy) ? "hireDate"
-                : "user.fullName";
+        String sortField = "hireDate".equalsIgnoreCase(sortBy) ? "hireDate" : "user.fullName";
 
         return Sort.by(Sort.Direction.ASC, sortField);
     }

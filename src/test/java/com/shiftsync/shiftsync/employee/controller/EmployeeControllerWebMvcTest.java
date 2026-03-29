@@ -2,6 +2,7 @@ package com.shiftsync.shiftsync.employee.controller;
 
 import com.shiftsync.shiftsync.common.enums.EmploymentType;
 import com.shiftsync.shiftsync.common.enums.UserRole;
+import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
 import com.shiftsync.shiftsync.config.security.CustomUserDetailsService;
 import com.shiftsync.shiftsync.config.security.JwtAuthenticationFilter;
 import com.shiftsync.shiftsync.config.security.JwtService;
@@ -135,6 +136,31 @@ class EmployeeControllerWebMvcTest {
     }
 
     @Test
+    @WithMockUser(username = "1", roles = "HR_ADMIN")
+    void createEmployee_ProfileAlreadyExists_ReturnsConflict() throws Exception {
+        when(employeeService.createEmployee(any())).thenThrow(new DuplicateResourceException("Employee profile already exists for this user"));
+
+        String body = """
+                {
+                  "userId": 1,
+                  "phone": "+233000000000",
+                  "employmentType": "FULL_TIME",
+                  "departmentId": 2,
+                  "locationId": 3,
+                  "skills": ["barista"],
+                  "contractedWeeklyHours": 40,
+                  "hireDate": "2026-01-01"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/employees")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Employee profile already exists for this user"));
+    }
+
+    @Test
     @WithMockUser(username = "11", roles = "MANAGER")
     void getEmployees_ManagerRole_ReturnsOk() throws Exception {
         EmployeeResponse employee = new EmployeeResponse(
@@ -168,6 +194,21 @@ class EmployeeControllerWebMvcTest {
                 .andExpect(jsonPath("$.totalPages").value(1))
                 .andExpect(jsonPath("$.currentPage").value(0))
                 .andExpect(jsonPath("$.content[0].employeeId").value(10));
+    }
+
+    @Test
+    @WithMockUser(username = "11", roles = "MANAGER")
+    void getEmployees_DefaultSortByLastName_ReturnsOk() throws Exception {
+        EmployeePageResponse pageResponse = new EmployeePageResponse(List.of(), 0, 0, 0);
+        when(employeeService.getEmployees(anyLong(), anyBoolean(), any(), any(), any(), any(), anyInt(), anyInt(), anyString()))
+                .thenReturn(pageResponse);
+
+        mockMvc.perform(get("/api/v1/employees")
+                        .param("page", "0")
+                        .param("size", "10"))
+                .andExpect(status().isOk());
+
+        verify(employeeService).getEmployees(11L, true, null, null, null, true, 0, 10, "lastName");
     }
 
     @Test
