@@ -6,6 +6,7 @@ import com.shiftsync.shiftsync.common.response.ErrorResponse;
 import com.shiftsync.shiftsync.employee.dto.CreateEmployeeRequest;
 import com.shiftsync.shiftsync.employee.dto.EmployeePageResponse;
 import com.shiftsync.shiftsync.employee.dto.EmployeeResponse;
+import com.shiftsync.shiftsync.employee.dto.GetEmployeesRequest;
 import com.shiftsync.shiftsync.employee.dto.UpdateMyProfileRequest;
 import com.shiftsync.shiftsync.employee.service.EmployeeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -108,9 +109,9 @@ public class EmployeeController {
             @RequestParam(defaultValue = "lastName") String sortBy
     ) {
         Long actorUserId = getCurrentUserId(authentication);
-        boolean isManager = hasRole(authentication.getAuthorities());
+        boolean isManager = isManager(authentication.getAuthorities());
 
-        EmployeePageResponse response = employeeService.getEmployees(
+        GetEmployeesRequest request = new GetEmployeesRequest(
                 actorUserId,
                 isManager,
                 department,
@@ -121,6 +122,8 @@ public class EmployeeController {
                 size,
                 sortBy
         );
+
+        EmployeePageResponse response = employeeService.getEmployees(request);
         return ResponseEntity.ok(response);
     }
 
@@ -164,7 +167,7 @@ public class EmployeeController {
             @PathVariable Long id
     ) {
         Long actorUserId = getCurrentUserId(authentication);
-        boolean isManager = hasRole(authentication.getAuthorities());
+        boolean isManager = isManager(authentication.getAuthorities());
         return ResponseEntity.ok(employeeService.getEmployeeById(actorUserId, isManager, id));
     }
 
@@ -207,7 +210,7 @@ public class EmployeeController {
         throw new UnauthorizedException("Invalid authentication principal");
     }
 
-    private boolean hasRole(Collection<? extends GrantedAuthority> authorities) {
+    private boolean isManager(Collection<? extends GrantedAuthority> authorities) {
         return authorities.stream().anyMatch(a -> "ROLE_MANAGER".equals(a.getAuthority()));
     }
 }

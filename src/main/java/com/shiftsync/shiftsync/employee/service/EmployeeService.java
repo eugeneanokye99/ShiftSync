@@ -1,9 +1,9 @@
 package com.shiftsync.shiftsync.employee.service;
 
-import com.shiftsync.shiftsync.common.enums.EmploymentType;
 import com.shiftsync.shiftsync.employee.dto.CreateEmployeeRequest;
 import com.shiftsync.shiftsync.employee.dto.EmployeePageResponse;
 import com.shiftsync.shiftsync.employee.dto.EmployeeResponse;
+import com.shiftsync.shiftsync.employee.dto.GetEmployeesRequest;
 import com.shiftsync.shiftsync.employee.dto.UpdateMyProfileRequest;
 
 /**
@@ -22,28 +22,10 @@ public interface EmployeeService {
     /**
      * Gets employees.
      *
-     * @param actorUserId    the actor user id
-     * @param isManager      the is manager
-     * @param departmentId   the department id
-     * @param locationId     the location id
-     * @param employmentType the employment type
-     * @param active         the active
-     * @param page           the page
-     * @param size           the size
-     * @param sortBy         the sort by
+     * @param request the get employees request
      * @return the employees
      */
-    EmployeePageResponse getEmployees(
-            Long actorUserId,
-            boolean isManager,
-            Long departmentId,
-            Long locationId,
-            EmploymentType employmentType,
-            Boolean active,
-            int page,
-            int size,
-            String sortBy
-    );
+    EmployeePageResponse getEmployees(GetEmployeesRequest request);
 
     /**
      * Gets my profile.

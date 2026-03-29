@@ -5,12 +5,14 @@ import com.shiftsync.shiftsync.auth.repository.UserRepository;
 import com.shiftsync.shiftsync.common.enums.EmploymentType;
 import com.shiftsync.shiftsync.common.enums.UserRole;
 import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
+import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
 import com.shiftsync.shiftsync.department.entity.Department;
 import com.shiftsync.shiftsync.department.repository.DepartmentRepository;
 import com.shiftsync.shiftsync.employee.dto.CreateEmployeeRequest;
 import com.shiftsync.shiftsync.employee.dto.EmployeePageResponse;
 import com.shiftsync.shiftsync.employee.dto.EmployeeResponse;
+import com.shiftsync.shiftsync.employee.dto.GetEmployeesRequest;
 import com.shiftsync.shiftsync.employee.dto.UpdateMyProfileRequest;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.mapper.EmployeeMapper;
@@ -29,6 +31,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
@@ -179,10 +182,10 @@ class EmployeeServiceImplTest {
     @Test
     void getEmployees_ReturnsPageResponse() {
         Page<Employee> page = new PageImpl<>(List.of(employee), PageRequest.of(0, 10), 1);
-        when(employeeRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(Pageable.class))).thenReturn(page);
+        when(employeeRepository.findAll(org.mockito.ArgumentMatchers.<Specification<Employee>>any(), any(Pageable.class))).thenReturn(page);
         when(employeeMapper.toResponse(employee)).thenReturn(response);
 
-        EmployeePageResponse result = employeeService.getEmployees(
+        GetEmployeesRequest getEmployeesRequest = new GetEmployeesRequest(
                 1L,
                 false,
                 null,
@@ -193,6 +196,8 @@ class EmployeeServiceImplTest {
                 10,
                 "name"
         );
+
+        EmployeePageResponse result = employeeService.getEmployees(getEmployeesRequest);
 
         assertThat(result.totalElements()).isEqualTo(1);
         assertThat(result.totalPages()).isEqualTo(1);
@@ -219,13 +224,13 @@ class EmployeeServiceImplTest {
     }
 
     @Test
-    void deactivateEmployee_AlreadyInactive_ThrowsDuplicateResourceException() {
+    void deactivateEmployee_AlreadyInactive_ThrowsInvalidStateException() {
         employee.setActive(false);
         employee.setDeactivatedAt(LocalDateTime.now());
         when(employeeRepository.findById(10L)).thenReturn(Optional.of(employee));
 
         assertThatThrownBy(() -> employeeService.deactivateEmployee(10L))
-                .isInstanceOf(DuplicateResourceException.class)
+                .isInstanceOf(InvalidStateException.class)
                 .hasMessage("Employee is already inactive");
     }
 

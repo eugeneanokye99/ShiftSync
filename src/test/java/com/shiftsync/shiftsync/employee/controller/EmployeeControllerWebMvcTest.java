@@ -9,6 +9,7 @@ import com.shiftsync.shiftsync.config.security.JwtService;
 import com.shiftsync.shiftsync.config.security.SecurityConfig;
 import com.shiftsync.shiftsync.employee.dto.EmployeePageResponse;
 import com.shiftsync.shiftsync.employee.dto.EmployeeResponse;
+import com.shiftsync.shiftsync.employee.dto.GetEmployeesRequest;
 import com.shiftsync.shiftsync.employee.service.EmployeeService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,10 +26,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -184,7 +183,7 @@ class EmployeeControllerWebMvcTest {
         );
 
         EmployeePageResponse pageResponse = new EmployeePageResponse(List.of(employee), 1, 1, 0);
-        when(employeeService.getEmployees(anyLong(), anyBoolean(), any(), any(), any(), any(), anyInt(), anyInt(), anyString()))
+        when(employeeService.getEmployees(any(GetEmployeesRequest.class)))
                 .thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/v1/employees")
@@ -202,7 +201,7 @@ class EmployeeControllerWebMvcTest {
     @WithMockUser(username = "11", roles = "MANAGER")
     void getEmployees_DefaultSortByLastName_ReturnsOk() throws Exception {
         EmployeePageResponse pageResponse = new EmployeePageResponse(List.of(), 0, 0, 0);
-        when(employeeService.getEmployees(anyLong(), anyBoolean(), any(), any(), any(), any(), anyInt(), anyInt(), anyString()))
+        when(employeeService.getEmployees(any(GetEmployeesRequest.class)))
                 .thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/v1/employees")
@@ -210,7 +209,17 @@ class EmployeeControllerWebMvcTest {
                         .param("size", "10"))
                 .andExpect(status().isOk());
 
-        verify(employeeService).getEmployees(11L, true, null, null, null, true, 0, 10, "lastName");
+        verify(employeeService).getEmployees(argThat(req ->
+                req.actorUserId().equals(11L)
+                        && req.isManager()
+                        && req.departmentId() == null
+                        && req.locationId() == null
+                        && req.employmentType() == null
+                        && Boolean.TRUE.equals(req.active())
+                        && req.page() == 0
+                        && req.size() == 10
+                        && "lastName".equals(req.sortBy())
+        ));
     }
 
     @Test
@@ -219,7 +228,7 @@ class EmployeeControllerWebMvcTest {
         mockMvc.perform(get("/api/v1/employees"))
                 .andExpect(status().isForbidden());
 
-        verify(employeeService, never()).getEmployees(anyLong(), anyBoolean(), any(), any(), any(), any(), anyInt(), anyInt(), anyString());
+        verify(employeeService, never()).getEmployees(any(GetEmployeesRequest.class));
     }
 
     @Test

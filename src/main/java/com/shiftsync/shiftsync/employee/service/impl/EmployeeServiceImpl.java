@@ -4,12 +4,14 @@ import com.shiftsync.shiftsync.auth.entity.User;
 import com.shiftsync.shiftsync.auth.repository.UserRepository;
 import com.shiftsync.shiftsync.common.enums.EmploymentType;
 import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
+import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
 import com.shiftsync.shiftsync.department.entity.Department;
 import com.shiftsync.shiftsync.department.repository.DepartmentRepository;
 import com.shiftsync.shiftsync.employee.dto.CreateEmployeeRequest;
 import com.shiftsync.shiftsync.employee.dto.EmployeePageResponse;
 import com.shiftsync.shiftsync.employee.dto.EmployeeResponse;
+import com.shiftsync.shiftsync.employee.dto.GetEmployeesRequest;
 import com.shiftsync.shiftsync.employee.dto.UpdateMyProfileRequest;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.mapper.EmployeeMapper;
@@ -75,18 +77,17 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional(readOnly = true)
-    public EmployeePageResponse getEmployees(
-            Long actorUserId,
-            boolean isManager,
-            Long departmentId,
-            Long locationId,
-            EmploymentType employmentType,
-            Boolean active,
-            int page,
-            int size,
-            String sortBy
-    ) {
+    public EmployeePageResponse getEmployees(GetEmployeesRequest request) {
         List<Long> scopedLocationIds = null;
+        Long actorUserId = request.actorUserId();
+        boolean isManager = request.isManager();
+        Long departmentId = request.departmentId();
+        Long locationId = request.locationId();
+        EmploymentType employmentType = request.employmentType();
+        Boolean active = request.active();
+        int page = request.page();
+        int size = request.size();
+        String sortBy = request.sortBy();
 
         if (isManager) {
             Employee manager = employeeRepository.findByUserId(actorUserId)
@@ -185,7 +186,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
 
         if (!Boolean.TRUE.equals(employee.getActive())) {
-            throw new DuplicateResourceException("Employee is already inactive");
+            throw new InvalidStateException("Employee is already inactive");
         }
 
         employee.setActive(false);
