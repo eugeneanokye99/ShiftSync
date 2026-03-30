@@ -27,6 +27,14 @@ public interface LocationService {
     List<LocationResponse> getActiveLocations();
 
     /**
+     * Gets assigned locations for manager.
+     *
+     * @param actorUserId the actor user id
+     * @return the assigned locations for manager
+     */
+    List<LocationResponse> getAssignedLocationsForManager(Long actorUserId);
+
+    /**
      * Update location location response.
      *
      * @param locationId the location id

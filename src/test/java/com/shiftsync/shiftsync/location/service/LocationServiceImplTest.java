@@ -2,11 +2,14 @@ package com.shiftsync.shiftsync.location.service;
 
 import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
+import com.shiftsync.shiftsync.employee.entity.Employee;
+import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.location.dto.CreateLocationRequest;
 import com.shiftsync.shiftsync.location.dto.LocationResponse;
 import com.shiftsync.shiftsync.location.dto.UpdateLocationRequest;
 import com.shiftsync.shiftsync.location.entity.Location;
 import com.shiftsync.shiftsync.location.mapper.LocationMapper;
+import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
 import com.shiftsync.shiftsync.location.repository.LocationRepository;
 import com.shiftsync.shiftsync.location.service.impl.LocationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +36,12 @@ class LocationServiceImplTest {
     private LocationRepository locationRepository;
 
     @Mock
+    private EmployeeRepository employeeRepository;
+
+    @Mock
+    private ManagerLocationRepository managerLocationRepository;
+
+    @Mock
     private LocationMapper locationMapper;
 
     @InjectMocks
@@ -40,6 +49,7 @@ class LocationServiceImplTest {
 
     private Location location;
     private LocationResponse response;
+    private Employee managerEmployee;
 
     @BeforeEach
     void setUp() {
@@ -58,6 +68,10 @@ class LocationServiceImplTest {
                 40,
                 true
         );
+
+        managerEmployee = Employee.builder()
+                .id(20L)
+                .build();
     }
 
     @Test
@@ -131,6 +145,38 @@ class LocationServiceImplTest {
         assertThatThrownBy(() -> locationService.updateLocation(1L, request))
                 .isInstanceOf(DuplicateResourceException.class)
                 .hasMessage("Location name already exists");
+    }
+
+    @Test
+    void getAssignedLocationsForManager_ReturnsEmptyListWhenNoAssignments() {
+        when(employeeRepository.findByUserId(99L)).thenReturn(Optional.of(managerEmployee));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(20L)).thenReturn(List.of());
+
+        List<LocationResponse> locations = locationService.getAssignedLocationsForManager(99L);
+
+        assertThat(locations).isEmpty();
+    }
+
+    @Test
+    void getAssignedLocationsForManager_ReturnsMappedLocations() {
+        when(employeeRepository.findByUserId(99L)).thenReturn(Optional.of(managerEmployee));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(20L)).thenReturn(List.of(1L));
+        when(locationRepository.findAllById(List.of(1L))).thenReturn(List.of(location));
+        when(locationMapper.toResponse(location)).thenReturn(response);
+
+        List<LocationResponse> locations = locationService.getAssignedLocationsForManager(99L);
+
+        assertThat(locations).hasSize(1);
+        assertThat(locations.getFirst().name()).isEqualTo("Airport Branch");
+    }
+
+    @Test
+    void getAssignedLocationsForManager_WhenManagerProfileMissing_ThrowsNotFound() {
+        when(employeeRepository.findByUserId(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> locationService.getAssignedLocationsForManager(99L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Manager profile not found");
     }
 }
 

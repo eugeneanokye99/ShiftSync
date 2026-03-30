@@ -2,11 +2,14 @@ package com.shiftsync.shiftsync.location.service.impl;
 
 import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
+import com.shiftsync.shiftsync.employee.entity.Employee;
+import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.location.dto.CreateLocationRequest;
 import com.shiftsync.shiftsync.location.dto.LocationResponse;
 import com.shiftsync.shiftsync.location.dto.UpdateLocationRequest;
 import com.shiftsync.shiftsync.location.entity.Location;
 import com.shiftsync.shiftsync.location.mapper.LocationMapper;
+import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
 import com.shiftsync.shiftsync.location.repository.LocationRepository;
 import com.shiftsync.shiftsync.location.service.LocationService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +23,8 @@ import java.util.List;
 public class LocationServiceImpl implements LocationService {
 
     private final LocationRepository locationRepository;
+    private final EmployeeRepository employeeRepository;
+    private final ManagerLocationRepository managerLocationRepository;
     private final LocationMapper locationMapper;
 
     @Override
@@ -44,6 +49,23 @@ public class LocationServiceImpl implements LocationService {
     @Transactional(readOnly = true)
     public List<LocationResponse> getActiveLocations() {
         return locationRepository.findAllByActiveTrue()
+                .stream()
+                .map(locationMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LocationResponse> getAssignedLocationsForManager(Long actorUserId) {
+        Employee manager = employeeRepository.findByUserId(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manager profile not found"));
+
+        List<Long> locationIds = managerLocationRepository.findLocationIdsByManagerEmployeeId(manager.getId());
+        if (locationIds.isEmpty()) {
+            return List.of();
+        }
+
+        return locationRepository.findAllById(locationIds)
                 .stream()
                 .map(locationMapper::toResponse)
                 .toList();
