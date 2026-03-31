@@ -105,6 +105,20 @@ class DepartmentControllerWebMvcTest {
     }
 
     @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void createDepartment_BlankName_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(post("/api/v1/locations/1/departments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": ""
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name").value("Department name is required"));
+    }
+
+    @Test
     @WithMockUser(roles = "MANAGER")
     void getDepartmentsByLocation_Manager_ReturnsOk() throws Exception {
         when(departmentService.getDepartmentsByLocation(1L))
