@@ -100,6 +100,24 @@ class LocationControllerWebMvcTest {
     }
 
     @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void createLocation_BlankName_ReturnsBadRequest() throws Exception {
+        String body = """
+                {
+                  "name": "",
+                  "address": "Airport Road",
+                  "maxHeadcountPerShift": 40
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/locations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.name").value("Location name is required"));
+    }
+
+    @Test
     @WithMockUser
     void getActiveLocations_ReturnsOk() throws Exception {
         when(locationService.getActiveLocations())
