@@ -4,6 +4,7 @@ import com.shiftsync.shiftsync.config.security.CustomUserDetailsService;
 import com.shiftsync.shiftsync.config.security.JwtAuthenticationFilter;
 import com.shiftsync.shiftsync.config.security.JwtService;
 import com.shiftsync.shiftsync.config.security.SecurityConfig;
+import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.location.dto.LocationResponse;
 import com.shiftsync.shiftsync.location.service.LocationService;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(ManagerLocationController.class)
 @ActiveProfiles("test")
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, AuthenticationHelper.class})
 class ManagerLocationControllerWebMvcTest {
 
     @Autowired

@@ -1,8 +1,8 @@
 package com.shiftsync.shiftsync.employee.controller;
 
 import com.shiftsync.shiftsync.common.enums.EmploymentType;
-import com.shiftsync.shiftsync.common.exception.UnauthorizedException;
 import com.shiftsync.shiftsync.common.response.ErrorResponse;
+import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.employee.dto.CreateEmployeeRequest;
 import com.shiftsync.shiftsync.employee.dto.EmployeePageResponse;
 import com.shiftsync.shiftsync.employee.dto.EmployeeResponse;
@@ -22,7 +22,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,6 +40,7 @@ import java.util.Collection;
 public class EmployeeController {
 
     private final EmployeeService employeeService;
+    private final AuthenticationHelper authenticationHelper;
 
     @PostMapping
     @PreAuthorize("hasRole('HR_ADMIN')")
@@ -108,7 +108,7 @@ public class EmployeeController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "lastName") String sortBy
     ) {
-        Long actorUserId = getCurrentUserId(authentication);
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
         boolean isManager = isManager(authentication.getAuthorities());
 
         GetEmployeesRequest request = new GetEmployeesRequest(
@@ -135,7 +135,7 @@ public class EmployeeController {
             @ApiResponse(responseCode = "403", description = "Access denied", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<EmployeeResponse> getMyProfile(Authentication authentication) {
-        Long actorUserId = getCurrentUserId(authentication);
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
         return ResponseEntity.ok(employeeService.getMyProfile(actorUserId));
     }
 
@@ -150,7 +150,7 @@ public class EmployeeController {
             Authentication authentication,
             @RequestBody UpdateMyProfileRequest request
     ) {
-        Long actorUserId = getCurrentUserId(authentication);
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
         return ResponseEntity.ok(employeeService.updateMyProfile(actorUserId, request));
     }
 
@@ -166,7 +166,7 @@ public class EmployeeController {
             Authentication authentication,
             @PathVariable Long id
     ) {
-        Long actorUserId = getCurrentUserId(authentication);
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
         boolean isManager = isManager(authentication.getAuthorities());
         return ResponseEntity.ok(employeeService.getEmployeeById(actorUserId, isManager, id));
     }
@@ -183,32 +183,6 @@ public class EmployeeController {
         return ResponseEntity.ok(employeeService.deactivateEmployee(id));
     }
 
-    private Long getCurrentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new UnauthorizedException("Authentication required");
-        }
-
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof Long value) {
-            return value;
-        }
-        if (principal instanceof String value) {
-            try {
-                return Long.parseLong(value);
-            } catch (NumberFormatException ex) {
-                throw new UnauthorizedException("Invalid authentication principal");
-            }
-        }
-        if (principal instanceof UserDetails userDetails) {
-            try {
-                return Long.parseLong(userDetails.getUsername());
-            } catch (NumberFormatException ex) {
-                throw new UnauthorizedException("Invalid authentication principal");
-            }
-        }
-
-        throw new UnauthorizedException("Invalid authentication principal");
-    }
 
     private boolean isManager(Collection<? extends GrantedAuthority> authorities) {
         return authorities.stream().anyMatch(a -> "ROLE_MANAGER".equals(a.getAuthority()));

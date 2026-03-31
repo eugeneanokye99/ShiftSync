@@ -3,6 +3,7 @@ package com.shiftsync.shiftsync.employee.controller;
 import com.shiftsync.shiftsync.common.enums.EmploymentType;
 import com.shiftsync.shiftsync.common.enums.UserRole;
 import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
+import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.config.security.CustomUserDetailsService;
 import com.shiftsync.shiftsync.config.security.JwtAuthenticationFilter;
 import com.shiftsync.shiftsync.config.security.JwtService;
@@ -38,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(EmployeeController.class)
 @ActiveProfiles("test")
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, AuthenticationHelper.class})
 class EmployeeControllerWebMvcTest {
 
     @Autowired
