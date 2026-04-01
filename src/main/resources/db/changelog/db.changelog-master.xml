@@ -8,5 +8,6 @@
     <!-- Include your changesets here -->
     <include file="db/changelog/changes/001-initial-schema.xml"/>
     <include file="db/changelog/changes/002-add-employees-notification-enabled.xml"/>
+    <include file="db/changelog/changes/003-add-users-must-reset-password.xml"/>
 
 </databaseChangeLog>

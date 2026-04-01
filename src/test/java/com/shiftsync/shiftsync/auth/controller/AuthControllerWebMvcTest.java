@@ -2,6 +2,8 @@ package com.shiftsync.shiftsync.auth.controller;
 
 import com.shiftsync.shiftsync.auth.dto.LoginRequest;
 import com.shiftsync.shiftsync.auth.dto.RegisterRequest;
+import com.shiftsync.shiftsync.auth.dto.ChangePasswordRequest;
+import com.shiftsync.shiftsync.auth.dto.ChangePasswordResponse;
 import com.shiftsync.shiftsync.auth.service.AuthService;
 import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
 import com.shiftsync.shiftsync.common.exception.GlobalExceptionHandler;
@@ -173,6 +175,63 @@ class AuthControllerWebMvcTest {
                 .andExpect(jsonPath("$.message").value("Authorization header must contain a valid Bearer token"));
 
         verify(authService, never()).refresh(any(String.class));
+    }
+
+    @Test
+    void changePasswordFirstLogin_Success_ReturnsOk() throws Exception {
+        when(authService.changePasswordFirstLogin(any(ChangePasswordRequest.class)))
+                .thenReturn(new ChangePasswordResponse("Password changed successfully. You can now log in."));
+
+        String body = """
+                {
+                  "email": "test@shiftsync.com",
+                  "currentPassword": "Password@123",
+                  "newPassword": "NewPassword@123"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/change-password-first-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Password changed successfully. You can now log in."));
+    }
+
+    @Test
+    void changePasswordFirstLogin_BlankEmail_ReturnsBadRequest() throws Exception {
+        String body = """
+                {
+                  "email": "",
+                  "currentPassword": "Password@123",
+                  "newPassword": "NewPassword@123"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/change-password-first-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.email").value("Email is required"));
+    }
+
+    @Test
+    void changePasswordFirstLogin_InvalidCredentials_ReturnsUnauthorized() throws Exception {
+        when(authService.changePasswordFirstLogin(any(ChangePasswordRequest.class)))
+                .thenThrow(new BadCredentialsException("Bad credentials"));
+
+        String body = """
+                {
+                  "email": "test@shiftsync.com",
+                  "currentPassword": "WrongPassword",
+                  "newPassword": "NewPassword@123"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/change-password-first-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Invalid credentials"));
     }
 }
 

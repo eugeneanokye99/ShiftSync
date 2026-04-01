@@ -66,6 +66,7 @@ class AuthServiceImplTest {
                 .passwordHash("hashedPassword")
                 .fullName("Test User")
                 .role(UserRole.EMPLOYEE)
+                .mustResetPassword(true)
                 .build();
 
         registerRequest = new RegisterRequest(
@@ -93,6 +94,8 @@ class AuthServiceImplTest {
         assertThat(response.role()).isEqualTo(UserRole.EMPLOYEE);
         assertThat(response.message()).isEqualTo("User registered successfully");
 
+        verify(userRepository).save(argThat(saved -> Boolean.TRUE.equals(saved.getMustResetPassword())));
+
         verify(userRepository).existsByEmail(registerRequest.email());
         verify(passwordEncoder).encode(registerRequest.password());
         verify(userRepository).save(any(User.class));
@@ -112,6 +115,7 @@ class AuthServiceImplTest {
 
     @Test
     void login_Success() {
+        testUser.setMustResetPassword(false);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(authentication);
         when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(testUser));
@@ -129,6 +133,54 @@ class AuthServiceImplTest {
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(userRepository).findByEmail("test@shiftsync.com");
         verify(jwtService).generateToken(1L, "test@shiftsync.com", "EMPLOYEE");
+    }
+
+    @Test
+    void login_PasswordResetRequired_ThrowsUnauthorizedException() {
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+        when(userRepository.findByEmail(loginRequest.email())).thenReturn(Optional.of(testUser));
+
+        assertThatThrownBy(() -> authService.login(loginRequest))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessage("Password reset required before login");
+
+        verify(jwtService, never()).generateToken(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    void changePasswordFirstLogin_Success() {
+        when(userRepository.findByEmail("test@shiftsync.com")).thenReturn(Optional.of(testUser));
+        when(passwordEncoder.matches("Password@123", "hashedPassword")).thenReturn(true);
+        when(passwordEncoder.encode("NewPassword@123")).thenReturn("newHash");
+
+        var response = authService.changePasswordFirstLogin(
+                new com.shiftsync.shiftsync.auth.dto.ChangePasswordRequest(
+                        "test@shiftsync.com",
+                        "Password@123",
+                        "NewPassword@123"
+                )
+        );
+
+        assertThat(response.message()).isEqualTo("Password changed successfully. You can now log in.");
+        assertThat(testUser.getMustResetPassword()).isFalse();
+        assertThat(testUser.getPasswordHash()).isEqualTo("newHash");
+        verify(userRepository).save(testUser);
+    }
+
+    @Test
+    void changePasswordFirstLogin_InvalidCurrentPassword_ThrowsUnauthorizedException() {
+        when(userRepository.findByEmail("test@shiftsync.com")).thenReturn(Optional.of(testUser));
+        when(passwordEncoder.matches("WrongPassword", "hashedPassword")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.changePasswordFirstLogin(
+                new com.shiftsync.shiftsync.auth.dto.ChangePasswordRequest(
+                        "test@shiftsync.com",
+                        "WrongPassword",
+                        "NewPassword@123"
+                )
+        )).isInstanceOf(UnauthorizedException.class)
+                .hasMessage("Invalid credentials");
     }
 
     @Test

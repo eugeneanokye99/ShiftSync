@@ -34,6 +34,9 @@ public class User {
     @Column(nullable = false)
     private UserRole role;
 
+    @Column(name = "must_reset_password", nullable = false)
+    private Boolean mustResetPassword;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -42,6 +45,9 @@ public class User {
 
     @PrePersist
     protected void onCreate() {
+        if (mustResetPassword == null) {
+            mustResetPassword = false;
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
