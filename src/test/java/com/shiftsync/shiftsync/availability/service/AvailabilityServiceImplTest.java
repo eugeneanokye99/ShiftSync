@@ -3,9 +3,11 @@ package com.shiftsync.shiftsync.availability.service;
 import com.shiftsync.shiftsync.auth.entity.User;
 import com.shiftsync.shiftsync.availability.dto.AvailabilityOverrideResponse;
 import com.shiftsync.shiftsync.availability.dto.CreateAvailabilityOverrideRequest;
+import com.shiftsync.shiftsync.availability.dto.ManagerWeeklyAvailabilityResponse;
 import com.shiftsync.shiftsync.availability.dto.RecurringAvailabilityItemRequest;
 import com.shiftsync.shiftsync.availability.dto.RecurringAvailabilityResponse;
 import com.shiftsync.shiftsync.availability.entity.AvailabilityOverride;
+import com.shiftsync.shiftsync.availability.entity.RecurringAvailability;
 import com.shiftsync.shiftsync.availability.repository.AvailabilityOverrideRepository;
 import com.shiftsync.shiftsync.availability.repository.RecurringAvailabilityRepository;
 import com.shiftsync.shiftsync.availability.service.impl.AvailabilityServiceImpl;
@@ -16,12 +18,14 @@ import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
+import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -49,6 +53,9 @@ class AvailabilityServiceImplTest {
 
     @Mock
     private AvailabilityOverrideRepository availabilityOverrideRepository;
+
+    @Mock
+    private ManagerLocationRepository managerLocationRepository;
 
     @InjectMocks
     private AvailabilityServiceImpl availabilityService;
@@ -152,8 +159,7 @@ class AvailabilityServiceImplTest {
         );
 
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(employee));
-        when(availabilityOverrideRepository.existsByEmployeeIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-                10L, request.endDate(), request.startDate())).thenReturn(false);
+        when(availabilityOverrideRepository.hasOverlap(10L, request.startDate(), request.endDate())).thenReturn(false);
         when(availabilityOverrideRepository.save(any(AvailabilityOverride.class))).thenAnswer(invocation -> {
             AvailabilityOverride override = invocation.getArgument(0);
             override.setId(77L);
@@ -177,8 +183,7 @@ class AvailabilityServiceImplTest {
         );
 
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(employee));
-        when(availabilityOverrideRepository.existsByEmployeeIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-                10L, request.endDate(), request.startDate())).thenReturn(true);
+        when(availabilityOverrideRepository.hasOverlap(10L, request.startDate(), request.endDate())).thenReturn(true);
 
         assertThatThrownBy(() -> availabilityService.createOverride(5L, request))
                 .isInstanceOf(InvalidStateException.class)
@@ -211,7 +216,7 @@ class AvailabilityServiceImplTest {
                 .build();
 
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(employee));
-        when(availabilityOverrideRepository.findByEmployeeIdAndEndDateGreaterThanEqualOrderByStartDateAsc(10L, LocalDate.now()))
+        when(availabilityOverrideRepository.findActiveByEmployee(10L, LocalDate.now()))
                 .thenReturn(List.of(current));
 
         List<AvailabilityOverrideResponse> response = availabilityService.listActiveOverrides(5L);
@@ -228,6 +233,98 @@ class AvailabilityServiceImplTest {
         assertThatThrownBy(() -> availabilityService.deleteOverride(5L, 99L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Availability override not found");
+    }
+
+    @Test
+    void getLocationWeeklyAvailability_ManagerNotAssigned_ThrowsForbidden() {
+        when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(employee));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(2L));
+
+        assertThatThrownBy(() -> availabilityService.getLocationWeeklyAvailability(5L, 1L, LocalDate.of(2026, 4, 8)))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("You are not assigned to this location");
+    }
+
+    @Test
+    void getLocationWeeklyAvailability_MergesRecurringMinusOverrides() {
+        User managerUser = User.builder()
+                .id(5L)
+                .email("manager@shiftsync.com")
+                .fullName("Manager One")
+                .passwordHash("hash")
+                .role(UserRole.MANAGER)
+                .build();
+
+        Employee manager = Employee.builder()
+                .id(10L)
+                .user(managerUser)
+                .employmentType(EmploymentType.FULL_TIME)
+                .contractedWeeklyHours(new BigDecimal("40.00"))
+                .hireDate(LocalDate.now())
+                .active(true)
+                .notificationEnabled(true)
+                .build();
+
+        User teamUser = User.builder()
+                .id(7L)
+                .email("employee2@shiftsync.com")
+                .fullName("Employee Two")
+                .passwordHash("hash")
+                .role(UserRole.EMPLOYEE)
+                .build();
+
+        Employee teamMember = Employee.builder()
+                .id(20L)
+                .user(teamUser)
+                .employmentType(EmploymentType.FULL_TIME)
+                .contractedWeeklyHours(new BigDecimal("40.00"))
+                .hireDate(LocalDate.now())
+                .active(true)
+                .notificationEnabled(true)
+                .build();
+
+        RecurringAvailability mondayWindow = RecurringAvailability.builder()
+                .employee(teamMember)
+                .dayOfWeek(DayOfWeek.MONDAY)
+                .startTime(LocalTime.of(9, 0))
+                .endTime(LocalTime.of(13, 0))
+                .build();
+
+        RecurringAvailability tuesdayWindow = RecurringAvailability.builder()
+                .employee(teamMember)
+                .dayOfWeek(DayOfWeek.TUESDAY)
+                .startTime(LocalTime.of(10, 0))
+                .endTime(LocalTime.of(14, 0))
+                .build();
+
+        AvailabilityOverride mondayOverride = AvailabilityOverride.builder()
+                .employee(teamMember)
+                .startDate(LocalDate.of(2026, 4, 6))
+                .endDate(LocalDate.of(2026, 4, 6))
+                .reason("Personal")
+                .build();
+
+        when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
+        when(employeeRepository.findByLocationIdAndActiveTrueWithUser(1L)).thenReturn(List.of(teamMember));
+        when(recurringAvailabilityRepository.findByEmployeeIdIn(List.of(20L))).thenReturn(List.of(mondayWindow, tuesdayWindow));
+        when(availabilityOverrideRepository.findWeekOverlaps(
+                List.of(20L), LocalDate.of(2026, 4, 6), LocalDate.of(2026, 4, 12)))
+                .thenReturn(List.of(mondayOverride));
+
+        ManagerWeeklyAvailabilityResponse response = availabilityService.getLocationWeeklyAvailability(5L, 1L, LocalDate.of(2026, 4, 8));
+
+        assertThat(response.weekStart()).isEqualTo(LocalDate.of(2026, 4, 6));
+        assertThat(response.weekEnd()).isEqualTo(LocalDate.of(2026, 4, 12));
+        assertThat(response.employees()).hasSize(1);
+
+        List<ManagerWeeklyAvailabilityResponse.DailyAvailability> days = response.employees().getFirst().days();
+        assertThat(days).hasSize(7);
+        assertThat(days.getFirst().overridden()).isTrue();
+        assertThat(days.getFirst().windows()).isEmpty();
+        assertThat(days.get(1).overridden()).isFalse();
+        assertThat(days.get(1).windows()).hasSize(1);
+        assertThat(days.get(1).windows().getFirst().startTime()).isEqualTo(LocalTime.of(10, 0));
     }
 }
 

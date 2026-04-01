@@ -2,9 +2,11 @@ package com.shiftsync.shiftsync.availability.service;
 
 import com.shiftsync.shiftsync.availability.dto.AvailabilityOverrideResponse;
 import com.shiftsync.shiftsync.availability.dto.CreateAvailabilityOverrideRequest;
+import com.shiftsync.shiftsync.availability.dto.ManagerWeeklyAvailabilityResponse;
 import com.shiftsync.shiftsync.availability.dto.RecurringAvailabilityItemRequest;
 import com.shiftsync.shiftsync.availability.dto.RecurringAvailabilityResponse;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -48,5 +50,15 @@ public interface AvailabilityService {
      * @param overrideId  the override id
      */
     void deleteOverride(Long actorUserId, Long overrideId);
+
+    /**
+     * Gets location weekly availability.
+     *
+     * @param actorUserId the actor user id
+     * @param locationId  the location id
+     * @param weekDate    the week date
+     * @return the location weekly availability
+     */
+    ManagerWeeklyAvailabilityResponse getLocationWeeklyAvailability(Long actorUserId, Long locationId, LocalDate weekDate);
 }
 
