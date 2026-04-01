@@ -215,6 +215,23 @@ class AuthControllerWebMvcTest {
     }
 
     @Test
+    void changePasswordFirstLogin_WeakNewPassword_ReturnsBadRequest() throws Exception {
+        String body = """
+                {
+                  "email": "test@shiftsync.com",
+                  "currentPassword": "Password@123",
+                  "newPassword": "password1"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/auth/change-password-first-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.newPassword").value("New password must include uppercase, lowercase, number, and special character"));
+    }
+
+    @Test
     void changePasswordFirstLogin_InvalidCredentials_ReturnsUnauthorized() throws Exception {
         when(authService.changePasswordFirstLogin(any(ChangePasswordRequest.class)))
                 .thenThrow(new BadCredentialsException("Bad credentials"));
