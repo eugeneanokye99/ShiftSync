@@ -35,7 +35,7 @@ public class User {
     private UserRole role;
 
     @Column(name = "must_reset_password", nullable = false)
-    private Boolean mustResetPassword;
+    private Boolean mustResetPassword = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
