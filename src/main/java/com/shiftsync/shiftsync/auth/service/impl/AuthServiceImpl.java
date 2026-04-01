@@ -1,6 +1,8 @@
 package com.shiftsync.shiftsync.auth.service.impl;
 
 import com.shiftsync.shiftsync.auth.dto.AuthResponse;
+import com.shiftsync.shiftsync.auth.dto.ChangePasswordRequest;
+import com.shiftsync.shiftsync.auth.dto.ChangePasswordResponse;
 import com.shiftsync.shiftsync.auth.dto.LoginRequest;
 import com.shiftsync.shiftsync.auth.dto.RegisterRequest;
 import com.shiftsync.shiftsync.auth.dto.RegisterResponse;
@@ -39,6 +41,7 @@ public class AuthServiceImpl implements AuthService {
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .fullName(request.fullName())
                 .role(request.role())
+                .mustResetPassword(true)
                 .build();
 
         user = userRepository.save(user);
@@ -65,6 +68,10 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
 
+        if (Boolean.TRUE.equals(user.getMustResetPassword())) {
+            throw new UnauthorizedException("Password reset required before login");
+        }
+
 
         String token = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
 
@@ -84,5 +91,27 @@ public class AuthServiceImpl implements AuthService {
         String newToken = jwtService.generateToken(user.getId(), user.getEmail(), user.getRole().name());
 
         return new AuthResponse(newToken, user.getId(), user.getEmail(), user.getFullName(), user.getRole());
+    }
+
+    @Override
+    @Transactional
+    public ChangePasswordResponse changePasswordFirstLogin(ChangePasswordRequest request) {
+        User user = userRepository.findByEmail(request.email())
+                .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
+
+        if (!Boolean.TRUE.equals(user.getMustResetPassword())) {
+            throw new UnauthorizedException("Invalid credentials");
+        }
+
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new UnauthorizedException("Invalid credentials");
+        }
+
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.setMustResetPassword(false);
+        userRepository.save(user);
+
+        return new ChangePasswordResponse("Password changed successfully. You can now log in.");
     }
 }

@@ -1,6 +1,8 @@
 package com.shiftsync.shiftsync.auth.service;
 
 import com.shiftsync.shiftsync.auth.dto.AuthResponse;
+import com.shiftsync.shiftsync.auth.dto.ChangePasswordRequest;
+import com.shiftsync.shiftsync.auth.dto.ChangePasswordResponse;
 import com.shiftsync.shiftsync.auth.dto.LoginRequest;
 import com.shiftsync.shiftsync.auth.dto.RegisterRequest;
 import com.shiftsync.shiftsync.auth.dto.RegisterResponse;
@@ -32,4 +34,12 @@ public interface AuthService {
      * @return the auth response
      */
     AuthResponse refresh(String token);
+
+    /**
+     * Change password response.
+     *
+     * @param request the request
+     * @return the change password response
+     */
+    ChangePasswordResponse changePasswordFirstLogin(ChangePasswordRequest request);
 }

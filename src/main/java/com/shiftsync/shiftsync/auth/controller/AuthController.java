@@ -1,6 +1,8 @@
 package com.shiftsync.shiftsync.auth.controller;
 
 import com.shiftsync.shiftsync.auth.dto.AuthResponse;
+import com.shiftsync.shiftsync.auth.dto.ChangePasswordRequest;
+import com.shiftsync.shiftsync.auth.dto.ChangePasswordResponse;
 import com.shiftsync.shiftsync.auth.dto.LoginRequest;
 import com.shiftsync.shiftsync.auth.dto.RegisterRequest;
 import com.shiftsync.shiftsync.auth.dto.RegisterResponse;
@@ -107,6 +109,35 @@ public class AuthController {
 
         String token = authHeader.substring(7);
         AuthResponse response = authService.refresh(token);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/change-password-first-login")
+    @Operation(
+            summary = "Change password on first login",
+            description = "Changes an HR-provisioned temporary password and clears the password reset flag."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Password changed successfully",
+                    content = @Content(schema = @Schema(implementation = ChangePasswordResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid request parameters",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Invalid credentials or invalid first-login state",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    public ResponseEntity<ChangePasswordResponse> changePasswordFirstLogin(
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        ChangePasswordResponse response = authService.changePasswordFirstLogin(request);
         return ResponseEntity.ok(response);
     }
 }

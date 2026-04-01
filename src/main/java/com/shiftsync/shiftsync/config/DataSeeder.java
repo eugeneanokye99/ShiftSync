@@ -38,6 +38,7 @@ public class DataSeeder {
                 admin.setPasswordHash(passwordEncoder.encode(adminPassword));
                 admin.setFullName("System Administrator");
                 admin.setRole(UserRole.HR_ADMIN);
+                admin.setMustResetPassword(true);
 
                 userRepository.save(admin);
                 log.info("HR Admin user seeded: admin@shiftsync.com");
