@@ -1,5 +1,7 @@
 package com.shiftsync.shiftsync.availability.service;
 
+import com.shiftsync.shiftsync.availability.dto.AvailabilityOverrideResponse;
+import com.shiftsync.shiftsync.availability.dto.CreateAvailabilityOverrideRequest;
 import com.shiftsync.shiftsync.availability.dto.RecurringAvailabilityItemRequest;
 import com.shiftsync.shiftsync.availability.dto.RecurringAvailabilityResponse;
 
@@ -21,5 +23,30 @@ public interface AvailabilityService {
             Long actorUserId,
             List<RecurringAvailabilityItemRequest> windows
     );
+
+    /**
+     * Create override availability override response.
+     *
+     * @param actorUserId the actor user id
+     * @param request     the request
+     * @return the availability override response
+     */
+    AvailabilityOverrideResponse createOverride(Long actorUserId, CreateAvailabilityOverrideRequest request);
+
+    /**
+     * List active overrides list.
+     *
+     * @param actorUserId the actor user id
+     * @return the list
+     */
+    List<AvailabilityOverrideResponse> listActiveOverrides(Long actorUserId);
+
+    /**
+     * Delete override.
+     *
+     * @param actorUserId the actor user id
+     * @param overrideId  the override id
+     */
+    void deleteOverride(Long actorUserId, Long overrideId);
 }
 

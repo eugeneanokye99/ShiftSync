@@ -1,8 +1,10 @@
 package com.shiftsync.shiftsync.availability.controller;
 
+import com.shiftsync.shiftsync.availability.dto.AvailabilityOverrideResponse;
 import com.shiftsync.shiftsync.availability.dto.RecurringAvailabilityResponse;
 import com.shiftsync.shiftsync.availability.service.AvailabilityService;
 import com.shiftsync.shiftsync.common.exception.BadRequestException;
+import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.config.security.CustomUserDetailsService;
 import com.shiftsync.shiftsync.config.security.JwtAuthenticationFilter;
@@ -19,13 +21,19 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -112,6 +120,87 @@ class AvailabilityControllerWebMvcTest {
         mockMvc.perform(put("/api/v1/employees/me/availability/recurring")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("[]"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void createOverride_Success_ReturnsCreated() throws Exception {
+        when(availabilityService.createOverride(anyLong(), any())).thenReturn(
+                new AvailabilityOverrideResponse(10L, LocalDate.of(2026, 4, 10), LocalDate.of(2026, 4, 12), "Travel")
+        );
+
+        String body = """
+                {
+                  "startDate": "2026-04-10",
+                  "endDate": "2026-04-12",
+                  "reason": "Travel"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/employees/me/availability/overrides")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("/api/v1/employees/me/availability/overrides/10")))
+                .andExpect(jsonPath("$.id").value(10));
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void createOverride_Overlap_ReturnsConflict() throws Exception {
+        when(availabilityService.createOverride(anyLong(), any()))
+                .thenThrow(new InvalidStateException("Overlapping override dates are not allowed"));
+
+        String body = """
+                {
+                  "startDate": "2026-04-10",
+                  "endDate": "2026-04-12",
+                  "reason": "Travel"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/employees/me/availability/overrides")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Overlapping override dates are not allowed"));
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void listOverrides_ReturnsOk() throws Exception {
+        when(availabilityService.listActiveOverrides(anyLong())).thenReturn(List.of(
+                new AvailabilityOverrideResponse(10L, LocalDate.of(2026, 4, 10), LocalDate.of(2026, 4, 12), "Travel")
+        ));
+
+        mockMvc.perform(get("/api/v1/employees/me/availability/overrides"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].reason").value("Travel"));
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void deleteOverride_ReturnsNoContent() throws Exception {
+        doNothing().when(availabilityService).deleteOverride(5L, 10L);
+
+        mockMvc.perform(delete("/api/v1/employees/me/availability/overrides/10"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "MANAGER")
+    void createOverride_WrongRole_ReturnsForbidden() throws Exception {
+        String body = """
+                {
+                  "startDate": "2026-04-10",
+                  "endDate": "2026-04-12"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/employees/me/availability/overrides")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
                 .andExpect(status().isForbidden());
     }
 }

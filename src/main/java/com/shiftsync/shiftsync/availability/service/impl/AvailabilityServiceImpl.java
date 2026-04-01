@@ -1,11 +1,16 @@
 package com.shiftsync.shiftsync.availability.service.impl;
 
+import com.shiftsync.shiftsync.availability.dto.AvailabilityOverrideResponse;
+import com.shiftsync.shiftsync.availability.dto.CreateAvailabilityOverrideRequest;
 import com.shiftsync.shiftsync.availability.dto.RecurringAvailabilityItemRequest;
 import com.shiftsync.shiftsync.availability.dto.RecurringAvailabilityResponse;
+import com.shiftsync.shiftsync.availability.entity.AvailabilityOverride;
 import com.shiftsync.shiftsync.availability.entity.RecurringAvailability;
+import com.shiftsync.shiftsync.availability.repository.AvailabilityOverrideRepository;
 import com.shiftsync.shiftsync.availability.repository.RecurringAvailabilityRepository;
 import com.shiftsync.shiftsync.availability.service.AvailabilityService;
 import com.shiftsync.shiftsync.common.exception.BadRequestException;
+import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
@@ -14,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -26,6 +32,7 @@ public class AvailabilityServiceImpl implements AvailabilityService {
 
     private final EmployeeRepository employeeRepository;
     private final RecurringAvailabilityRepository recurringAvailabilityRepository;
+    private final AvailabilityOverrideRepository availabilityOverrideRepository;
 
     @Override
     @Transactional
@@ -68,6 +75,62 @@ public class AvailabilityServiceImpl implements AvailabilityService {
                 .toList();
     }
 
+    @Override
+    @Transactional
+    public AvailabilityOverrideResponse createOverride(Long actorUserId, CreateAvailabilityOverrideRequest request) {
+        validateDateOrder(request.startDate(), request.endDate());
+
+        Employee employee = employeeRepository.findByUserId(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found"));
+
+        boolean overlaps = availabilityOverrideRepository
+                .existsByEmployeeIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+                        employee.getId(),
+                        request.endDate(),
+                        request.startDate()
+                );
+
+        if (overlaps) {
+            throw new InvalidStateException("Overlapping override dates are not allowed");
+        }
+
+        AvailabilityOverride saved = availabilityOverrideRepository.save(
+                AvailabilityOverride.builder()
+                        .employee(employee)
+                        .startDate(request.startDate())
+                        .endDate(request.endDate())
+                        .reason(request.reason())
+                        .build()
+        );
+
+        return toOverrideResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AvailabilityOverrideResponse> listActiveOverrides(Long actorUserId) {
+        Employee employee = employeeRepository.findByUserId(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found"));
+
+        return availabilityOverrideRepository
+                .findByEmployeeIdAndEndDateGreaterThanEqualOrderByStartDateAsc(employee.getId(), LocalDate.now())
+                .stream()
+                .map(this::toOverrideResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void deleteOverride(Long actorUserId, Long overrideId) {
+        Employee employee = employeeRepository.findByUserId(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found"));
+
+        AvailabilityOverride override = availabilityOverrideRepository.findByIdAndEmployeeId(overrideId, employee.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Availability override not found"));
+
+        availabilityOverrideRepository.delete(override);
+    }
+
     private void validateTimeOrder(List<RecurringAvailabilityItemRequest> windows) {
         windows.forEach(item -> {
             if (!item.endTime().isAfter(item.startTime())) {
@@ -104,6 +167,25 @@ public class AvailabilityServiceImpl implements AvailabilityService {
                 availability.getStartTime(),
                 availability.getEndTime()
         );
+    }
+
+    private AvailabilityOverrideResponse toOverrideResponse(AvailabilityOverride override) {
+        return new AvailabilityOverrideResponse(
+                override.getId(),
+                override.getStartDate(),
+                override.getEndDate(),
+                override.getReason()
+        );
+    }
+
+    private void validateDateOrder(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new BadRequestException("startDate and endDate are required");
+        }
+
+        if (endDate.isBefore(startDate)) {
+            throw new BadRequestException("endDate must be on or after startDate");
+        }
     }
 }
 
