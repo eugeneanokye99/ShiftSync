@@ -77,6 +77,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex) {
+        log.warn("Bad request: {}", ex.getMessage());
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "Bad Request",
+                ex.getMessage()
+        );
+        return ResponseEntity.badRequest().body(response);
+    }
+
     @ExceptionHandler(InvalidStateException.class)
     public ResponseEntity<ErrorResponse> handleInvalidState(InvalidStateException ex) {
         log.warn("Invalid resource state: {}", ex.getMessage());
