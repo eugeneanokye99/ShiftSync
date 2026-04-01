@@ -35,6 +35,7 @@ public class User {
     private UserRole role;
 
     @Column(name = "must_reset_password", nullable = false)
+    @Builder.Default
     private Boolean mustResetPassword = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
