@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The interface Manager location repository.
@@ -21,5 +22,23 @@ public interface ManagerLocationRepository extends JpaRepository<ManagerLocation
      */
     @Query("select ml.location.id from ManagerLocation ml where ml.manager.id = :managerEmployeeId")
     List<Long> findLocationIdsByManagerEmployeeId(Long managerEmployeeId);
+
+    /**
+     * Exists by manager id and location id boolean.
+     *
+     * @param managerId  the manager id
+     * @param locationId the location id
+     * @return the boolean
+     */
+    boolean existsByManagerIdAndLocationId(Long managerId, Long locationId);
+
+    /**
+     * Find by manager id and location id optional.
+     *
+     * @param managerId  the manager id
+     * @param locationId the location id
+     * @return the optional
+     */
+    Optional<ManagerLocation> findByManagerIdAndLocationId(Long managerId, Long locationId);
 }
 
