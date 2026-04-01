@@ -42,13 +42,6 @@ public class DataSeeder {
 
                 userRepository.save(admin);
                 log.info("HR Admin user seeded: admin@shiftsync.com");
-            } else {
-                userRepository.findByEmail("admin@shiftsync.com").ifPresent(admin -> {
-                    if (!Boolean.TRUE.equals(admin.getMustResetPassword())) {
-                        admin.setMustResetPassword(true);
-                        userRepository.save(admin);
-                    }
-                });
             }
         };
     }
