@@ -1,6 +1,10 @@
 package com.shiftsync.shiftsync.location.service;
 
+
+import com.shiftsync.shiftsync.auth.entity.User;
+import com.shiftsync.shiftsync.common.enums.UserRole;
 import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
+import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
@@ -8,6 +12,7 @@ import com.shiftsync.shiftsync.location.dto.CreateLocationRequest;
 import com.shiftsync.shiftsync.location.dto.LocationResponse;
 import com.shiftsync.shiftsync.location.dto.UpdateLocationRequest;
 import com.shiftsync.shiftsync.location.entity.Location;
+import com.shiftsync.shiftsync.location.entity.ManagerLocation;
 import com.shiftsync.shiftsync.location.mapper.LocationMapper;
 import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
 import com.shiftsync.shiftsync.location.repository.LocationRepository;
@@ -50,6 +55,7 @@ class LocationServiceImplTest {
     private Location location;
     private LocationResponse response;
     private Employee managerEmployee;
+    private User managerUser;
 
     @BeforeEach
     void setUp() {
@@ -71,7 +77,15 @@ class LocationServiceImplTest {
 
         managerEmployee = Employee.builder()
                 .id(20L)
+                .user(managerUser)
                 .build();
+
+        managerUser = User.builder()
+                .id(50L)
+                .role(UserRole.MANAGER)
+                .build();
+
+        managerEmployee.setUser(managerUser);
     }
 
     @Test
@@ -177,6 +191,65 @@ class LocationServiceImplTest {
         assertThatThrownBy(() -> locationService.getAssignedLocationsForManager(99L))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Manager profile not found");
+    }
+
+    @Test
+    void assignManagerToLocation_Success() {
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(managerEmployee));
+        when(locationRepository.findById(1L)).thenReturn(Optional.of(location));
+        when(managerLocationRepository.existsByManagerIdAndLocationId(20L, 1L)).thenReturn(false);
+
+        locationService.assignManagerToLocation(20L, 1L);
+
+        verify(managerLocationRepository).save(any(ManagerLocation.class));
+    }
+
+    @Test
+    void assignManagerToLocation_DuplicateAssignment_ThrowsConflict() {
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(managerEmployee));
+        when(locationRepository.findById(1L)).thenReturn(Optional.of(location));
+        when(managerLocationRepository.existsByManagerIdAndLocationId(20L, 1L)).thenReturn(true);
+
+        assertThatThrownBy(() -> locationService.assignManagerToLocation(20L, 1L))
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessage("Manager is already assigned to this location");
+    }
+
+    @Test
+    void assignManagerToLocation_NotManager_ThrowsInvalidState() {
+        managerUser.setRole(UserRole.EMPLOYEE);
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(managerEmployee));
+
+        assertThatThrownBy(() -> locationService.assignManagerToLocation(20L, 1L))
+                .isInstanceOf(InvalidStateException.class)
+                .hasMessage("Employee is not a manager");
+    }
+
+    @Test
+    void unassignManagerFromLocation_Success() {
+        ManagerLocation mapping = ManagerLocation.builder()
+                .id(5L)
+                .manager(managerEmployee)
+                .location(location)
+                .build();
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(managerEmployee));
+        when(locationRepository.findById(1L)).thenReturn(Optional.of(location));
+        when(managerLocationRepository.findByManagerIdAndLocationId(20L, 1L)).thenReturn(Optional.of(mapping));
+
+        locationService.unassignManagerFromLocation(20L, 1L);
+
+        verify(managerLocationRepository).delete(mapping);
+    }
+
+    @Test
+    void unassignManagerFromLocation_MissingAssignment_ThrowsNotFound() {
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(managerEmployee));
+        when(locationRepository.findById(1L)).thenReturn(Optional.of(location));
+        when(managerLocationRepository.findByManagerIdAndLocationId(20L, 1L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> locationService.unassignManagerFromLocation(20L, 1L))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Manager assignment not found");
     }
 }
 
