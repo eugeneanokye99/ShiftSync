@@ -184,6 +184,23 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void changePasswordFirstLogin_WhenResetNotRequired_ThrowsUnauthorizedWithoutPasswordCheck() {
+        testUser.setMustResetPassword(false);
+        when(userRepository.findByEmail("test@shiftsync.com")).thenReturn(Optional.of(testUser));
+
+        assertThatThrownBy(() -> authService.changePasswordFirstLogin(
+                new com.shiftsync.shiftsync.auth.dto.ChangePasswordRequest(
+                        "test@shiftsync.com",
+                        "Password@123",
+                        "NewPassword@123"
+                )
+        )).isInstanceOf(UnauthorizedException.class)
+                .hasMessage("Invalid credentials");
+
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
+    }
+
+    @Test
     void login_InvalidCredentials_ThrowsUnauthorizedException() {
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenThrow(new BadCredentialsException("Bad credentials"));

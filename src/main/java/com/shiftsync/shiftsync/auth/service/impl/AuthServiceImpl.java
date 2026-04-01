@@ -99,13 +99,14 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
 
+        if (!Boolean.TRUE.equals(user.getMustResetPassword())) {
+            throw new UnauthorizedException("Invalid credentials");
+        }
+
         if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
             throw new UnauthorizedException("Invalid credentials");
         }
 
-        if (!Boolean.TRUE.equals(user.getMustResetPassword())) {
-            throw new UnauthorizedException("Password reset is not required for this account");
-        }
 
         user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         user.setMustResetPassword(false);
