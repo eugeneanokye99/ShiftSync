@@ -19,7 +19,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -74,6 +76,34 @@ class ManagerLocationControllerWebMvcTest {
     @WithMockUser(username = "11", roles = "EMPLOYEE")
     void getMyAssignedLocations_WrongRole_ReturnsForbidden() throws Exception {
         mockMvc.perform(get("/api/v1/managers/me/locations"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void assignManagerToLocation_HrAdmin_ReturnsCreated() throws Exception {
+        mockMvc.perform(post("/api/v1/managers/20/locations/1"))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void assignManagerToLocation_WrongRole_ReturnsForbidden() throws Exception {
+        mockMvc.perform(post("/api/v1/managers/20/locations/1"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "HR_ADMIN")
+    void unassignManagerFromLocation_HrAdmin_ReturnsNoContent() throws Exception {
+        mockMvc.perform(delete("/api/v1/managers/20/locations/1"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void unassignManagerFromLocation_WrongRole_ReturnsForbidden() throws Exception {
+        mockMvc.perform(delete("/api/v1/managers/20/locations/1"))
                 .andExpect(status().isForbidden());
     }
 }

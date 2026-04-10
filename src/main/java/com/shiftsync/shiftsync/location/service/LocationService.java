@@ -35,6 +35,22 @@ public interface LocationService {
     List<LocationResponse> getAssignedLocationsForManager(Long actorUserId);
 
     /**
+     * Assign manager to location.
+     *
+     * @param managerEmployeeId the manager employee id
+     * @param locationId        the location id
+     */
+    void assignManagerToLocation(Long managerEmployeeId, Long locationId);
+
+    /**
+     * Unassign manager from location.
+     *
+     * @param managerEmployeeId the manager employee id
+     * @param locationId        the location id
+     */
+    void unassignManagerFromLocation(Long managerEmployeeId, Long locationId);
+
+    /**
      * Update location location response.
      *
      * @param locationId the location id

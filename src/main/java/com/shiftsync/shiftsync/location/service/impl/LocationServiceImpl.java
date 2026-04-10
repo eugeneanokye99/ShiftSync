@@ -1,11 +1,14 @@
 package com.shiftsync.shiftsync.location.service.impl;
 
 import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
+import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
+import com.shiftsync.shiftsync.common.enums.UserRole;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.location.dto.CreateLocationRequest;
 import com.shiftsync.shiftsync.location.dto.LocationResponse;
+import com.shiftsync.shiftsync.location.entity.ManagerLocation;
 import com.shiftsync.shiftsync.location.dto.UpdateLocationRequest;
 import com.shiftsync.shiftsync.location.entity.Location;
 import com.shiftsync.shiftsync.location.mapper.LocationMapper;
@@ -69,6 +72,50 @@ public class LocationServiceImpl implements LocationService {
                 .stream()
                 .map(locationMapper::toResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public void assignManagerToLocation(Long managerEmployeeId, Long locationId) {
+        Employee manager = employeeRepository.findById(managerEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manager not found"));
+
+        if (!UserRole.MANAGER.equals(manager.getUser().getRole())) {
+            throw new InvalidStateException("Employee is not a manager");
+        }
+
+        Location location = locationRepository.findById(locationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Location not found"));
+
+        if (managerLocationRepository.existsByManagerIdAndLocationId(managerEmployeeId, locationId)) {
+            throw new DuplicateResourceException("Manager is already assigned to this location");
+        }
+
+        managerLocationRepository.save(
+                ManagerLocation.builder()
+                        .manager(manager)
+                        .location(location)
+                        .build()
+        );
+    }
+
+    @Override
+    @Transactional
+    public void unassignManagerFromLocation(Long managerEmployeeId, Long locationId) {
+        Employee manager = employeeRepository.findById(managerEmployeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manager not found"));
+
+        if (!UserRole.MANAGER.equals(manager.getUser().getRole())) {
+            throw new InvalidStateException("Employee is not a manager");
+        }
+
+        locationRepository.findById(locationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Location not found"));
+
+        ManagerLocation managerLocation = managerLocationRepository.findByManagerIdAndLocationId(managerEmployeeId, locationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manager assignment not found"));
+
+        managerLocationRepository.delete(managerLocation);
     }
 
     @Override
