@@ -2,6 +2,7 @@ package com.shiftsync.shiftsync.leave.controller;
 
 import com.shiftsync.shiftsync.common.response.ErrorResponse;
 import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
+import com.shiftsync.shiftsync.leave.dto.ApproveLeaveRequest;
 import com.shiftsync.shiftsync.leave.dto.CreateLeaveRequest;
 import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
@@ -20,6 +21,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -87,6 +90,30 @@ public class LeaveRequestController {
                 size
         );
         return ResponseEntity.ok(leaveRequestService.getPendingLeaveRequests(request));
+    }
+
+    @PatchMapping("/{id}/approve")
+    @PreAuthorize("hasRole('HR_ADMIN')")
+    @Operation(
+            summary = "Approve leave request",
+            description = "Approves a pending leave request, stores HR note, and blocks employee availability for the leave period."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Leave request approved", content = @Content(schema = @Schema(implementation = LeaveRequestResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access denied", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Leave request not found", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Leave request is not pending", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<LeaveRequestResponse> approveLeaveRequest(
+            Authentication authentication,
+            @PathVariable Long id,
+            @Valid @RequestBody ApproveLeaveRequest request
+    ) {
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
+        LeaveRequestResponse response = leaveRequestService.approveLeaveRequest(actorUserId, id, request);
+        return ResponseEntity.ok(response);
     }
 }
 

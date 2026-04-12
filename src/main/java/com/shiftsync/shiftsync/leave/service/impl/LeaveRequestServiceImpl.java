@@ -1,9 +1,14 @@
 package com.shiftsync.shiftsync.leave.service.impl;
 
+import com.shiftsync.shiftsync.auth.entity.User;
+import com.shiftsync.shiftsync.auth.repository.UserRepository;
+import com.shiftsync.shiftsync.availability.entity.AvailabilityOverride;
+import com.shiftsync.shiftsync.availability.repository.AvailabilityOverrideRepository;
 import com.shiftsync.shiftsync.common.enums.LeaveStatus;
 import com.shiftsync.shiftsync.common.exception.BadRequestException;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
+import com.shiftsync.shiftsync.leave.dto.ApproveLeaveRequest;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.leave.dto.CreateLeaveRequest;
@@ -24,6 +29,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -31,7 +37,9 @@ import java.util.List;
 public class LeaveRequestServiceImpl implements LeaveRequestService {
 
     private final EmployeeRepository employeeRepository;
+    private final UserRepository userRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final AvailabilityOverrideRepository availabilityOverrideRepository;
     private final LeaveRequestMapper leaveRequestMapper;
 
     @Override
@@ -65,6 +73,37 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .build();
 
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
+        return leaveRequestMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public LeaveRequestResponse approveLeaveRequest(Long actorUserId, Long leaveRequestId, ApproveLeaveRequest request) {
+        User approver = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveRequestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
+
+        if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
+            throw new InvalidStateException("Only pending leave requests can be approved");
+        }
+
+        leaveRequest.setStatus(LeaveStatus.APPROVED);
+        leaveRequest.setHrNote(request.hrNote());
+        leaveRequest.setApprovedBy(approver);
+        leaveRequest.setApprovedAt(LocalDateTime.now());
+
+        LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
+
+        AvailabilityOverride override = AvailabilityOverride.builder()
+                .employee(saved.getEmployee())
+                .startDate(saved.getStartDate())
+                .endDate(saved.getEndDate())
+                .reason("Approved leave request " + saved.getId())
+                .build();
+        availabilityOverrideRepository.save(override);
+
         return leaveRequestMapper.toResponse(saved);
     }
 

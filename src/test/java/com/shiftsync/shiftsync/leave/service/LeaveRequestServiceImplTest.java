@@ -1,12 +1,16 @@
 package com.shiftsync.shiftsync.leave.service;
 
 import com.shiftsync.shiftsync.auth.entity.User;
+import com.shiftsync.shiftsync.auth.repository.UserRepository;
+import com.shiftsync.shiftsync.availability.entity.AvailabilityOverride;
+import com.shiftsync.shiftsync.availability.repository.AvailabilityOverrideRepository;
 import com.shiftsync.shiftsync.common.enums.LeaveStatus;
 import com.shiftsync.shiftsync.common.enums.LeaveType;
 import com.shiftsync.shiftsync.common.enums.UserRole;
 import com.shiftsync.shiftsync.common.exception.BadRequestException;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
+import com.shiftsync.shiftsync.leave.dto.ApproveLeaveRequest;
 import com.shiftsync.shiftsync.department.entity.Department;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
@@ -53,7 +57,13 @@ class LeaveRequestServiceImplTest {
     private EmployeeRepository employeeRepository;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
     private LeaveRequestRepository leaveRequestRepository;
+
+    @Mock
+    private AvailabilityOverrideRepository availabilityOverrideRepository;
 
     @Mock
     private LeaveRequestMapper leaveRequestMapper;
@@ -65,6 +75,7 @@ class LeaveRequestServiceImplTest {
     private CreateLeaveRequest request;
     private LeaveRequest leaveRequest;
     private LeaveRequestResponse response;
+    private User hrAdmin;
 
     @BeforeEach
     void setUp() {
@@ -77,6 +88,14 @@ class LeaveRequestServiceImplTest {
                 .fullName("Employee One")
                 .passwordHash("hash")
                 .role(UserRole.EMPLOYEE)
+                .build();
+
+        hrAdmin = User.builder()
+                .id(1L)
+                .email("hr@shiftsync.com")
+                .fullName("HR Admin")
+                .passwordHash("hash")
+                .role(UserRole.HR_ADMIN)
                 .build();
 
         employee = Employee.builder()
@@ -209,6 +228,48 @@ class LeaveRequestServiceImplTest {
         assertThat(result.currentPage()).isEqualTo(0);
         assertThat(result.content()).hasSize(1);
         assertThat(result.content().getFirst().employeeName()).isEqualTo("Employee One");
+    }
+
+    @Test
+    void approveLeaveRequest_Success() {
+        ApproveLeaveRequest approveRequest = new ApproveLeaveRequest("Approved for annual leave");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(hrAdmin));
+        when(leaveRequestRepository.findById(100L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
+        when(leaveRequestMapper.toResponse(leaveRequest)).thenReturn(response);
+
+        LeaveRequestResponse approved = leaveRequestService.approveLeaveRequest(1L, 100L, approveRequest);
+
+        assertThat(approved.id()).isEqualTo(100L);
+        verify(availabilityOverrideRepository).save(any(AvailabilityOverride.class));
+    }
+
+    @Test
+    void approveLeaveRequest_NotPending_ThrowsConflict() {
+        ApproveLeaveRequest approveRequest = new ApproveLeaveRequest("Approved for annual leave");
+        leaveRequest.setStatus(LeaveStatus.APPROVED);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(hrAdmin));
+        when(leaveRequestRepository.findById(100L)).thenReturn(Optional.of(leaveRequest));
+
+        assertThatThrownBy(() -> leaveRequestService.approveLeaveRequest(1L, 100L, approveRequest))
+                .isInstanceOf(InvalidStateException.class)
+                .hasMessage("Only pending leave requests can be approved");
+
+        verify(availabilityOverrideRepository, never()).save(any(AvailabilityOverride.class));
+    }
+
+    @Test
+    void approveLeaveRequest_LeaveNotFound_ThrowsNotFound() {
+        ApproveLeaveRequest approveRequest = new ApproveLeaveRequest("Approved for annual leave");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(hrAdmin));
+        when(leaveRequestRepository.findById(100L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> leaveRequestService.approveLeaveRequest(1L, 100L, approveRequest))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Leave request not found");
     }
 }
 

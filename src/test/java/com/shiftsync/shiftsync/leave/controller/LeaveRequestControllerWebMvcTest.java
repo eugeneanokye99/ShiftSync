@@ -249,5 +249,67 @@ class LeaveRequestControllerWebMvcTest {
                         && req.size() == 10
         ));
     }
+
+    @Test
+    void approveLeaveRequest_WithoutToken_ReturnsUnauthorized() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/leave-requests/100/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"hrNote\":\"Approved\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void approveLeaveRequest_WrongRole_ReturnsForbidden() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/leave-requests/100/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"hrNote\":\"Approved\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "HR_ADMIN")
+    void approveLeaveRequest_MissingHrNote_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/leave-requests/100/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"hrNote\":\"\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "HR_ADMIN")
+    void approveLeaveRequest_NotPending_ReturnsConflict() throws Exception {
+        when(leaveRequestService.approveLeaveRequest(eq(1L), eq(100L), any()))
+                .thenThrow(new InvalidStateException("Only pending leave requests can be approved"));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/leave-requests/100/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"hrNote\":\"Approved\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Only pending leave requests can be approved"));
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "HR_ADMIN")
+    void approveLeaveRequest_Success_ReturnsOk() throws Exception {
+        LeaveRequestResponse response = new LeaveRequestResponse(
+                100L,
+                20L,
+                LocalDate.of(2099, 1, 1),
+                LocalDate.of(2099, 1, 3),
+                LeaveType.ANNUAL,
+                "Family event",
+                LeaveStatus.APPROVED,
+                LocalDateTime.of(2098, 12, 1, 10, 0)
+        );
+        when(leaveRequestService.approveLeaveRequest(eq(1L), eq(100L), any())).thenReturn(response);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/v1/leave-requests/100/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"hrNote\":\"Approved\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(100))
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+    }
 }
 
