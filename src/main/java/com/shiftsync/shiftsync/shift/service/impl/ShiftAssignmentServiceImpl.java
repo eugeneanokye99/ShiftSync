@@ -7,6 +7,7 @@ import com.shiftsync.shiftsync.availability.repository.AvailabilityOverrideRepos
 import com.shiftsync.shiftsync.availability.repository.RecurringAvailabilityRepository;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
+import com.shiftsync.shiftsync.common.exception.UnprocessableEntityException;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
@@ -60,11 +61,20 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
         Employee employee = employeeRepository.findById(request.employeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found"));
 
+        if (!Boolean.TRUE.equals(employee.getActive())) {
+            throw new UnprocessableEntityException("Cannot assign an inactive employee to a shift");
+        }
+
         if (shiftAssignmentRepository.existsByShiftIdAndEmployeeId(shiftId, employee.getId())) {
             throw new InvalidStateException("Employee is already assigned to this shift");
         }
 
+        // TODO (Week 3 - FR-CONFLICT-01): reject if employee already assigned to an overlapping shift -> 409
+        // TODO (Week 3 - FR-CONFLICT-02): reject if shift falls within an approved leave period -> 409
+
         boolean availabilityMismatch = isAvailabilityMismatch(employee.getId(), shift);
+
+        // TODO (Week 3 - FR-CONFLICT-04): add overtime threshold warning to conflicts list
         if (availabilityMismatch && !override) {
             return new AssignEmployeeResponse(
                     "WARNING",

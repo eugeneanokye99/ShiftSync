@@ -8,6 +8,7 @@ import com.shiftsync.shiftsync.availability.repository.RecurringAvailabilityRepo
 import com.shiftsync.shiftsync.common.enums.EmploymentType;
 import com.shiftsync.shiftsync.common.enums.UserRole;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
+import com.shiftsync.shiftsync.common.exception.UnprocessableEntityException;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.location.entity.Location;
@@ -219,6 +220,20 @@ class ShiftAssignmentServiceImplTest {
         assertThatThrownBy(() -> shiftAssignmentService.assignEmployee(5L, 100L, new AssignEmployeeRequest(20L), false))
                 .isInstanceOf(InvalidStateException.class)
                 .hasMessage("Cannot assign employees to a cancelled shift");
+    }
+
+    @Test
+    void assignEmployee_InactiveEmployee_ThrowsUnprocessableEntity() {
+        employee.setActive(false);
+
+        when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
+        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
+
+        assertThatThrownBy(() -> shiftAssignmentService.assignEmployee(5L, 100L, new AssignEmployeeRequest(20L), false))
+                .isInstanceOf(UnprocessableEntityException.class)
+                .hasMessage("Cannot assign an inactive employee to a shift");
     }
 }
 

@@ -1,6 +1,7 @@
 package com.shiftsync.shiftsync.shift.controller;
 
 import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
+import com.shiftsync.shiftsync.common.exception.UnprocessableEntityException;
 import com.shiftsync.shiftsync.config.security.CustomUserDetailsService;
 import com.shiftsync.shiftsync.config.security.JwtAuthenticationFilter;
 import com.shiftsync.shiftsync.config.security.JwtService;
@@ -22,6 +23,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -96,6 +98,19 @@ class ShiftAssignmentControllerWebMvcTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"employeeId\":20}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "MANAGER")
+    void assignEmployee_InactiveEmployee_ReturnsUnprocessableEntity() throws Exception {
+        doThrow(new UnprocessableEntityException("Cannot assign an inactive employee to a shift"))
+                .when(shiftAssignmentService)
+                .assignEmployee(anyLong(), eq(100L), any(), eq(false));
+
+        mockMvc.perform(post("/api/v1/shifts/100/assignments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"employeeId\":20}"))
+                .andExpect(status().isUnprocessableContent());
     }
 }
 

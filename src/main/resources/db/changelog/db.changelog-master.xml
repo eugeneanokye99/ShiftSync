@@ -9,5 +9,6 @@
     <include file="db/changelog/changes/001-initial-schema.xml"/>
     <include file="db/changelog/changes/002-add-employees-notification-enabled.xml"/>
     <include file="db/changelog/changes/003-add-users-must-reset-password.xml"/>
+    <include file="db/changelog/changes/004-add-availability-and-shift-tables.xml"/>
 
 </databaseChangeLog>

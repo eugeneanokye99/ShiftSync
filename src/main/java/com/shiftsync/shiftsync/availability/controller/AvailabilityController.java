@@ -93,7 +93,7 @@ public class AvailabilityController {
     @PreAuthorize("hasRole('EMPLOYEE')")
     @Operation(
             summary = "List active availability overrides",
-            description = "Lists active one-off unavailability overrides for the authenticated employee."
+            description = "Lists one-off unavailability overrides that are currently active or scheduled for future dates."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Active overrides retrieved", content = @Content(array = @ArraySchema(schema = @Schema(implementation = AvailabilityOverrideResponse.class)))),
