@@ -7,6 +7,7 @@ import com.shiftsync.shiftsync.leave.dto.CreateLeaveRequest;
 import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestPageResponse;
+import com.shiftsync.shiftsync.leave.dto.RejectLeaveRequest;
 import com.shiftsync.shiftsync.leave.service.LeaveRequestService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -113,6 +114,30 @@ public class LeaveRequestController {
     ) {
         Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
         LeaveRequestResponse response = leaveRequestService.approveLeaveRequest(actorUserId, id, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/reject")
+    @PreAuthorize("hasRole('HR_ADMIN')")
+    @Operation(
+            summary = "Reject leave request",
+            description = "Rejects a pending leave request and stores the HR note."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Leave request rejected", content = @Content(schema = @Schema(implementation = LeaveRequestResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access denied", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Leave request not found", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Leave request is not pending", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<LeaveRequestResponse> rejectLeaveRequest(
+            Authentication authentication,
+            @PathVariable Long id,
+            @Valid @RequestBody RejectLeaveRequest request
+    ) {
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
+        LeaveRequestResponse response = leaveRequestService.rejectLeaveRequest(actorUserId, id, request);
         return ResponseEntity.ok(response);
     }
 }

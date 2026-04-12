@@ -5,6 +5,7 @@ import com.shiftsync.shiftsync.leave.dto.CreateLeaveRequest;
 import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestPageResponse;
+import com.shiftsync.shiftsync.leave.dto.RejectLeaveRequest;
 
 /**
  * The interface Leave request service.
@@ -29,6 +30,8 @@ public interface LeaveRequestService {
      * @return the leave request response
      */
     LeaveRequestResponse approveLeaveRequest(Long actorUserId, Long leaveRequestId, ApproveLeaveRequest request);
+
+    LeaveRequestResponse rejectLeaveRequest(Long actorUserId, Long leaveRequestId, RejectLeaveRequest request);
 
     /**
      * Gets pending leave requests.

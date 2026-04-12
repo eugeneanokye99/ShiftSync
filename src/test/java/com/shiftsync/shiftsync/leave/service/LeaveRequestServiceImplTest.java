@@ -19,6 +19,7 @@ import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestPageResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestResponse;
+import com.shiftsync.shiftsync.leave.dto.RejectLeaveRequest;
 import com.shiftsync.shiftsync.leave.entity.LeaveRequest;
 import com.shiftsync.shiftsync.leave.mapper.LeaveRequestMapper;
 import com.shiftsync.shiftsync.leave.repository.LeaveRequestRepository;
@@ -268,6 +269,48 @@ class LeaveRequestServiceImplTest {
         when(leaveRequestRepository.findById(100L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> leaveRequestService.approveLeaveRequest(1L, 100L, approveRequest))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Leave request not found");
+    }
+
+    @Test
+    void rejectLeaveRequest_Success() {
+        RejectLeaveRequest rejectRequest = new RejectLeaveRequest("Insufficient staffing");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(hrAdmin));
+        when(leaveRequestRepository.findById(100L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
+        when(leaveRequestMapper.toResponse(leaveRequest)).thenReturn(response);
+
+        LeaveRequestResponse rejected = leaveRequestService.rejectLeaveRequest(1L, 100L, rejectRequest);
+
+        assertThat(rejected.id()).isEqualTo(100L);
+        verify(availabilityOverrideRepository, never()).save(any(AvailabilityOverride.class));
+    }
+
+    @Test
+    void rejectLeaveRequest_NotPending_ThrowsConflict() {
+        RejectLeaveRequest rejectRequest = new RejectLeaveRequest("Insufficient staffing");
+        leaveRequest.setStatus(LeaveStatus.APPROVED);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(hrAdmin));
+        when(leaveRequestRepository.findById(100L)).thenReturn(Optional.of(leaveRequest));
+
+        assertThatThrownBy(() -> leaveRequestService.rejectLeaveRequest(1L, 100L, rejectRequest))
+                .isInstanceOf(InvalidStateException.class)
+                .hasMessage("Only pending leave requests can be rejected");
+
+        verify(availabilityOverrideRepository, never()).save(any(AvailabilityOverride.class));
+    }
+
+    @Test
+    void rejectLeaveRequest_LeaveNotFound_ThrowsNotFound() {
+        RejectLeaveRequest rejectRequest = new RejectLeaveRequest("Insufficient staffing");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(hrAdmin));
+        when(leaveRequestRepository.findById(100L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> leaveRequestService.rejectLeaveRequest(1L, 100L, rejectRequest))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Leave request not found");
     }

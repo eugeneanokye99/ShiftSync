@@ -16,6 +16,7 @@ import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestPageResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestResponse;
+import com.shiftsync.shiftsync.leave.dto.RejectLeaveRequest;
 import com.shiftsync.shiftsync.leave.entity.LeaveRequest;
 import com.shiftsync.shiftsync.leave.mapper.LeaveRequestMapper;
 import com.shiftsync.shiftsync.leave.repository.LeaveRequestRepository;
@@ -104,6 +105,28 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 .build();
         availabilityOverrideRepository.save(override);
 
+        return leaveRequestMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public LeaveRequestResponse rejectLeaveRequest(Long actorUserId, Long leaveRequestId, RejectLeaveRequest request) {
+        User reviewer = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveRequestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
+
+        if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
+            throw new InvalidStateException("Only pending leave requests can be rejected");
+        }
+
+        leaveRequest.setStatus(LeaveStatus.REJECTED);
+        leaveRequest.setHrNote(request.hrNote());
+        leaveRequest.setApprovedBy(reviewer);
+        leaveRequest.setApprovedAt(LocalDateTime.now());
+
+        LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
         return leaveRequestMapper.toResponse(saved);
     }
 
