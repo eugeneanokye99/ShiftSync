@@ -3,6 +3,7 @@ package com.shiftsync.shiftsync.leave.repository;
 import com.shiftsync.shiftsync.common.enums.LeaveStatus;
 import com.shiftsync.shiftsync.leave.entity.LeaveRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -11,7 +12,7 @@ import java.time.LocalDate;
 import java.util.Collection;
 
 @Repository
-public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long> {
+public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long>, JpaSpecificationExecutor<LeaveRequest> {
 
     @Query("""
             select case when count(lr) > 0 then true else false end

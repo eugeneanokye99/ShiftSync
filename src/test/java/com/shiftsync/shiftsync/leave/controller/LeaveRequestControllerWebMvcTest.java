@@ -2,13 +2,17 @@ package com.shiftsync.shiftsync.leave.controller;
 
 import com.shiftsync.shiftsync.common.enums.LeaveStatus;
 import com.shiftsync.shiftsync.common.enums.LeaveType;
+import com.shiftsync.shiftsync.common.exception.BadRequestException;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.config.security.CustomUserDetailsService;
 import com.shiftsync.shiftsync.config.security.JwtAuthenticationFilter;
 import com.shiftsync.shiftsync.config.security.JwtService;
 import com.shiftsync.shiftsync.config.security.SecurityConfig;
+import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
+import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestPageResponse;
+import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestResponse;
 import com.shiftsync.shiftsync.leave.service.LeaveRequestService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,10 +26,14 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -143,6 +151,9 @@ class LeaveRequestControllerWebMvcTest {
     @Test
     @WithMockUser(username = "5", roles = "EMPLOYEE")
     void createLeaveRequest_EndDateBeforeStartDate_ReturnsBadRequest() throws Exception {
+        when(leaveRequestService.createLeaveRequest(eq(5L), any()))
+                .thenThrow(new BadRequestException("End date must be on or after start date"));
+
         String body = """
                 {
                   "startDate": "2099-01-10",
@@ -176,6 +187,67 @@ class LeaveRequestControllerWebMvcTest {
                         .content(body))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Leave request overlaps with an existing pending or approved leave request"));
+    }
+
+    @Test
+    void getPendingLeaveRequests_WithoutToken_ReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/leave-requests"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void getPendingLeaveRequests_WrongRole_ReturnsForbidden() throws Exception {
+        mockMvc.perform(get("/api/v1/leave-requests"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "HR_ADMIN")
+    void getPendingLeaveRequests_Success_ReturnsOk() throws Exception {
+        PendingLeaveRequestResponse item = new PendingLeaveRequestResponse(
+                100L,
+                20L,
+                "Employee One",
+                "Kitchen",
+                LocalDate.of(2099, 1, 1),
+                LocalDate.of(2099, 1, 3),
+                LeaveType.ANNUAL,
+                3,
+                "Family event",
+                LeaveStatus.PENDING,
+                LocalDateTime.of(2098, 12, 1, 10, 0)
+        );
+        PendingLeaveRequestPageResponse pageResponse = new PendingLeaveRequestPageResponse(
+                List.of(item),
+                1,
+                1,
+                0
+        );
+
+        when(leaveRequestService.getPendingLeaveRequests(any(GetPendingLeaveRequestsRequest.class)))
+                .thenReturn(pageResponse);
+
+        mockMvc.perform(get("/api/v1/leave-requests")
+                        .param("employeeId", "20")
+                        .param("locationId", "3")
+                        .param("startDate", "2099-01-01")
+                        .param("endDate", "2099-01-31")
+                        .param("page", "0")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].employeeName").value("Employee One"))
+                .andExpect(jsonPath("$.content[0].daysRequested").value(3));
+
+        verify(leaveRequestService).getPendingLeaveRequests(argThat(req ->
+                req.employeeId().equals(20L)
+                        && req.locationId().equals(3L)
+                        && req.startDate().equals(LocalDate.of(2099, 1, 1))
+                        && req.endDate().equals(LocalDate.of(2099, 1, 31))
+                        && req.page() == 0
+                        && req.size() == 10
+        ));
     }
 }
 

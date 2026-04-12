@@ -3,7 +3,9 @@ package com.shiftsync.shiftsync.leave.controller;
 import com.shiftsync.shiftsync.common.response.ErrorResponse;
 import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.leave.dto.CreateLeaveRequest;
+import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
+import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestPageResponse;
 import com.shiftsync.shiftsync.leave.service.LeaveRequestService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -17,10 +19,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/v1/leave-requests")
@@ -51,6 +57,36 @@ public class LeaveRequestController {
         Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
         LeaveRequestResponse response = leaveRequestService.createLeaveRequest(actorUserId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('HR_ADMIN')")
+    @Operation(
+            summary = "Get pending leave requests",
+            description = "Returns paginated pending leave requests with optional employee, location, and date-range filters."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Pending leave requests retrieved", content = @Content(schema = @Schema(implementation = PendingLeaveRequestPageResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access denied", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<PendingLeaveRequestPageResponse> getPendingLeaveRequests(
+            @RequestParam(required = false) Long employeeId,
+            @RequestParam(required = false) Long locationId,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        GetPendingLeaveRequestsRequest request = new GetPendingLeaveRequestsRequest(
+                employeeId,
+                locationId,
+                startDate,
+                endDate,
+                page,
+                size
+        );
+        return ResponseEntity.ok(leaveRequestService.getPendingLeaveRequests(request));
     }
 }
 
