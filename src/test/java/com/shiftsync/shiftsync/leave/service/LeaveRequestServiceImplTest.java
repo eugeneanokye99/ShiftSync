@@ -36,6 +36,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -313,6 +314,47 @@ class LeaveRequestServiceImplTest {
         assertThatThrownBy(() -> leaveRequestService.rejectLeaveRequest(1L, 100L, rejectRequest))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Leave request not found");
+    }
+
+    @Test
+    void cancelLeaveRequest_Success() {
+        when(leaveRequestRepository.findById(100L)).thenReturn(Optional.of(leaveRequest));
+        when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
+        when(leaveRequestMapper.toResponse(leaveRequest)).thenReturn(response);
+
+        LeaveRequestResponse cancelled = leaveRequestService.cancelLeaveRequest(5L, 100L);
+
+        assertThat(cancelled.id()).isEqualTo(100L);
+        verify(availabilityOverrideRepository, never()).save(any(AvailabilityOverride.class));
+    }
+
+    @Test
+    void cancelLeaveRequest_Approved_ThrowsConflict() {
+        leaveRequest.setStatus(LeaveStatus.APPROVED);
+        when(leaveRequestRepository.findById(100L)).thenReturn(Optional.of(leaveRequest));
+
+        assertThatThrownBy(() -> leaveRequestService.cancelLeaveRequest(5L, 100L))
+                .isInstanceOf(InvalidStateException.class)
+                .hasMessage("Only pending leave requests can be cancelled");
+    }
+
+    @Test
+    void cancelLeaveRequest_Rejected_ThrowsConflict() {
+        leaveRequest.setStatus(LeaveStatus.REJECTED);
+        when(leaveRequestRepository.findById(100L)).thenReturn(Optional.of(leaveRequest));
+
+        assertThatThrownBy(() -> leaveRequestService.cancelLeaveRequest(5L, 100L))
+                .isInstanceOf(InvalidStateException.class)
+                .hasMessage("Only pending leave requests can be cancelled");
+    }
+
+    @Test
+    void cancelLeaveRequest_DifferentEmployee_ThrowsForbidden() {
+        when(leaveRequestRepository.findById(100L)).thenReturn(Optional.of(leaveRequest));
+
+        assertThatThrownBy(() -> leaveRequestService.cancelLeaveRequest(9L, 100L))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessage("You can only cancel your own leave request");
     }
 }
 

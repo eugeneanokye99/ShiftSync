@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -372,6 +373,62 @@ class LeaveRequestControllerWebMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(100))
                 .andExpect(jsonPath("$.status").value("REJECTED"));
+    }
+
+    @Test
+    void cancelLeaveRequest_WithoutToken_ReturnsUnauthorized() throws Exception {
+        mockMvc.perform(delete("/api/v1/leave-requests/100"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "HR_ADMIN")
+    void cancelLeaveRequest_WrongRole_ReturnsForbidden() throws Exception {
+        mockMvc.perform(delete("/api/v1/leave-requests/100"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void cancelLeaveRequest_NotPending_ReturnsConflict() throws Exception {
+        when(leaveRequestService.cancelLeaveRequest(eq(5L), eq(100L)))
+                .thenThrow(new InvalidStateException("Only pending leave requests can be cancelled"));
+
+        mockMvc.perform(delete("/api/v1/leave-requests/100"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Only pending leave requests can be cancelled"));
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void cancelLeaveRequest_OtherEmployee_ReturnsForbidden() throws Exception {
+        when(leaveRequestService.cancelLeaveRequest(eq(5L), eq(100L)))
+                .thenThrow(new org.springframework.security.access.AccessDeniedException("You can only cancel your own leave request"));
+
+        mockMvc.perform(delete("/api/v1/leave-requests/100"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You can only cancel your own leave request"));
+    }
+
+    @Test
+    @WithMockUser(username = "5", roles = "EMPLOYEE")
+    void cancelLeaveRequest_Success_ReturnsOk() throws Exception {
+        LeaveRequestResponse response = new LeaveRequestResponse(
+                100L,
+                20L,
+                LocalDate.of(2099, 1, 1),
+                LocalDate.of(2099, 1, 3),
+                LeaveType.ANNUAL,
+                "Family event",
+                LeaveStatus.CANCELLED,
+                LocalDateTime.of(2098, 12, 1, 10, 0)
+        );
+        when(leaveRequestService.cancelLeaveRequest(eq(5L), eq(100L))).thenReturn(response);
+
+        mockMvc.perform(delete("/api/v1/leave-requests/100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(100))
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
     }
 }
 

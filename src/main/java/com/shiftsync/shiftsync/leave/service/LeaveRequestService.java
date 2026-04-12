@@ -31,7 +31,24 @@ public interface LeaveRequestService {
      */
     LeaveRequestResponse approveLeaveRequest(Long actorUserId, Long leaveRequestId, ApproveLeaveRequest request);
 
+    /**
+     * Reject leave request leave request response.
+     *
+     * @param actorUserId    the actor user id
+     * @param leaveRequestId the leave request id
+     * @param request        the request
+     * @return the leave request response
+     */
     LeaveRequestResponse rejectLeaveRequest(Long actorUserId, Long leaveRequestId, RejectLeaveRequest request);
+
+    /**
+     * Cancel leave request leave request response.
+     *
+     * @param actorUserId    the actor user id
+     * @param leaveRequestId the leave request id
+     * @return the leave request response
+     */
+    LeaveRequestResponse cancelLeaveRequest(Long actorUserId, Long leaveRequestId);
 
     /**
      * Gets pending leave requests.

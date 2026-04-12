@@ -27,6 +27,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -126,6 +127,26 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         leaveRequest.setApprovedBy(reviewer);
         leaveRequest.setApprovedAt(LocalDateTime.now());
 
+        LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
+        return leaveRequestMapper.toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public LeaveRequestResponse cancelLeaveRequest(Long actorUserId, Long leaveRequestId) {
+        LeaveRequest leaveRequest = leaveRequestRepository.findById(leaveRequestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found"));
+
+        Long ownerUserId = leaveRequest.getEmployee().getUser().getId();
+        if (!ownerUserId.equals(actorUserId)) {
+            throw new AccessDeniedException("You can only cancel your own leave request");
+        }
+
+        if (leaveRequest.getStatus() != LeaveStatus.PENDING) {
+            throw new InvalidStateException("Only pending leave requests can be cancelled");
+        }
+
+        leaveRequest.setStatus(LeaveStatus.CANCELLED);
         LeaveRequest saved = leaveRequestRepository.save(leaveRequest);
         return leaveRequestMapper.toResponse(saved);
     }

@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -138,6 +139,28 @@ public class LeaveRequestController {
     ) {
         Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
         LeaveRequestResponse response = leaveRequestService.rejectLeaveRequest(actorUserId, id, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('EMPLOYEE')")
+    @Operation(
+            summary = "Cancel pending leave request",
+            description = "Cancels the authenticated employee's own pending leave request."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Leave request cancelled", content = @Content(schema = @Schema(implementation = LeaveRequestResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Access denied", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Leave request not found", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Leave request cannot be cancelled", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<LeaveRequestResponse> cancelLeaveRequest(
+            Authentication authentication,
+            @PathVariable Long id
+    ) {
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
+        LeaveRequestResponse response = leaveRequestService.cancelLeaveRequest(actorUserId, id);
         return ResponseEntity.ok(response);
     }
 }
