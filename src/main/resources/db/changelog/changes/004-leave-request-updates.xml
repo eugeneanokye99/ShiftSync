@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <!-- Rename approved_by/approved_at to reviewed_by/reviewed_at on leave_requests.
+         These fields record who reviewed the request (approve OR reject), so 'approved'
+         is misleading on rejected requests. -->
+    <changeSet id="004-001-rename-reviewed-columns-in-leave-requests" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="leave_requests" columnName="approved_by"/>
+        </preConditions>
+        <renameColumn tableName="leave_requests"
+                      oldColumnName="approved_by"
+                      newColumnName="reviewed_by"
+                      columnDataType="bigint"/>
+        <renameColumn tableName="leave_requests"
+                      oldColumnName="approved_at"
+                      newColumnName="reviewed_at"
+                      columnDataType="timestamp"/>
+        <rollback>
+            <renameColumn tableName="leave_requests"
+                          oldColumnName="reviewed_by"
+                          newColumnName="approved_by"
+                          columnDataType="bigint"/>
+            <renameColumn tableName="leave_requests"
+                          oldColumnName="reviewed_at"
+                          newColumnName="approved_at"
+                          columnDataType="timestamp"/>
+        </rollback>
+    </changeSet>
+
+    <!-- Add source column to availability_overrides to distinguish leave-sourced blocks
+         from employee-declared unavailability (needed for US-AVAIL-02 delete guard). -->
+    <changeSet id="004-002-add-source-to-availability-overrides" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="availability_overrides" columnName="source"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="availability_overrides">
+            <column name="source" type="varchar(50)" defaultValue="LEAVE_APPROVAL">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <rollback>
+            <dropColumn tableName="availability_overrides" columnName="source"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

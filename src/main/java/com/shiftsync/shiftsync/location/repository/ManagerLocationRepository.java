@@ -23,6 +23,9 @@ public interface ManagerLocationRepository extends JpaRepository<ManagerLocation
     @Query("select ml.location.id from ManagerLocation ml where ml.manager.id = :managerEmployeeId")
     List<Long> findLocationIdsByManagerEmployeeId(Long managerEmployeeId);
 
+    @Query("select ml.manager.user.id from ManagerLocation ml where ml.location.id = :locationId")
+    List<Long> findManagerUserIdsByLocationId(Long locationId);
+
     /**
      * Exists by manager id and location id boolean.
      *

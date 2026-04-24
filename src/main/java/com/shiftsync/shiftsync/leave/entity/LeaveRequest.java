@@ -1,6 +1,8 @@
-package com.shiftsync.shiftsync.availability.entity;
+package com.shiftsync.shiftsync.leave.entity;
 
-import com.shiftsync.shiftsync.common.enums.OverrideSource;
+import com.shiftsync.shiftsync.auth.entity.User;
+import com.shiftsync.shiftsync.common.enums.LeaveStatus;
+import com.shiftsync.shiftsync.common.enums.LeaveType;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -20,18 +22,19 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnTransformer;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "availability_overrides")
+@Table(name = "leave_requests")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AvailabilityOverride {
+public class LeaveRequest {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -47,12 +50,31 @@ public class AvailabilityOverride {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
+    @Enumerated(EnumType.STRING)
+    @ColumnTransformer(write = "?::leave_type")
+    @Column(name = "leave_type", nullable = false)
+    private LeaveType leaveType;
+
     @Column(name = "reason")
     private String reason;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "source", nullable = false)
-    private OverrideSource source;
+    @ColumnTransformer(write = "?::leave_status")
+    @Column(name = "status", nullable = false)
+    private LeaveStatus status;
+
+    @Column(name = "hr_note")
+    private String hrNote;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reviewed_by")
+    private User reviewedBy;
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
+    @Column(name = "submitted_at", nullable = false)
+    private LocalDateTime submittedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -62,6 +84,12 @@ public class AvailabilityOverride {
 
     @PrePersist
     protected void onCreate() {
+        if (status == null) {
+            status = LeaveStatus.PENDING;
+        }
+        if (submittedAt == null) {
+            submittedAt = LocalDateTime.now();
+        }
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
     }
