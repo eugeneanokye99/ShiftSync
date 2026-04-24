@@ -6,8 +6,10 @@ import com.shiftsync.shiftsync.availability.entity.AvailabilityOverride;
 import com.shiftsync.shiftsync.availability.repository.AvailabilityOverrideRepository;
 import com.shiftsync.shiftsync.common.enums.LeaveStatus;
 import com.shiftsync.shiftsync.common.enums.LeaveType;
+import com.shiftsync.shiftsync.common.enums.NotificationType;
 import com.shiftsync.shiftsync.common.enums.UserRole;
 import com.shiftsync.shiftsync.common.exception.BadRequestException;
+import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
 import com.shiftsync.shiftsync.leave.dto.ApproveLeaveRequest;
@@ -15,7 +17,7 @@ import com.shiftsync.shiftsync.department.entity.Department;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.leave.dto.CreateLeaveRequest;
-import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
+import com.shiftsync.shiftsync.leave.dto.GetLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestPageResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestResponse;
@@ -25,6 +27,8 @@ import com.shiftsync.shiftsync.leave.mapper.LeaveRequestMapper;
 import com.shiftsync.shiftsync.leave.repository.LeaveRequestRepository;
 import com.shiftsync.shiftsync.leave.service.impl.LeaveRequestServiceImpl;
 import com.shiftsync.shiftsync.location.entity.Location;
+import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
+import com.shiftsync.shiftsync.notification.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,6 +70,12 @@ class LeaveRequestServiceImplTest {
 
     @Mock
     private AvailabilityOverrideRepository availabilityOverrideRepository;
+
+    @Mock
+    private ManagerLocationRepository managerLocationRepository;
+
+    @Mock
+    private NotificationService notificationService;
 
     @Mock
     private LeaveRequestMapper leaveRequestMapper;
@@ -164,7 +174,7 @@ class LeaveRequestServiceImplTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> leaveRequestService.createLeaveRequest(5L, request))
-                .isInstanceOf(InvalidStateException.class)
+                .isInstanceOf(DuplicateResourceException.class)
                 .hasMessage("Leave request overlaps with an existing pending or approved leave request");
 
         verify(leaveRequestRepository, never()).save(any(LeaveRequest.class));
@@ -194,10 +204,11 @@ class LeaveRequestServiceImplTest {
     }
 
     @Test
-    void getPendingLeaveRequests_ReturnsPagedResponse() {
-        GetPendingLeaveRequestsRequest getRequest = new GetPendingLeaveRequestsRequest(
+    void getLeaveRequests_ReturnsPagedResponse() {
+        GetLeaveRequestsRequest getRequest = new GetLeaveRequestsRequest(
                 20L,
                 3L,
+                null,
                 LocalDate.of(2099, 1, 1),
                 LocalDate.of(2099, 1, 31),
                 0,
@@ -223,7 +234,7 @@ class LeaveRequestServiceImplTest {
         when(leaveRequestRepository.findAll(org.mockito.ArgumentMatchers.<Specification<LeaveRequest>>any(), any(Pageable.class))).thenReturn(page);
         when(leaveRequestMapper.toPendingResponse(leaveRequest)).thenReturn(pendingResponse);
 
-        PendingLeaveRequestPageResponse result = leaveRequestService.getPendingLeaveRequests(getRequest);
+        PendingLeaveRequestPageResponse result = leaveRequestService.getLeaveRequests(getRequest);
 
         assertThat(result.totalElements()).isEqualTo(1);
         assertThat(result.totalPages()).isEqualTo(1);
@@ -240,11 +251,13 @@ class LeaveRequestServiceImplTest {
         when(leaveRequestRepository.findById(100L)).thenReturn(Optional.of(leaveRequest));
         when(leaveRequestRepository.save(any(LeaveRequest.class))).thenReturn(leaveRequest);
         when(leaveRequestMapper.toResponse(leaveRequest)).thenReturn(response);
+        when(managerLocationRepository.findManagerUserIdsByLocationId(3L)).thenReturn(List.of());
 
         LeaveRequestResponse approved = leaveRequestService.approveLeaveRequest(1L, 100L, approveRequest);
 
         assertThat(approved.id()).isEqualTo(100L);
         verify(availabilityOverrideRepository).save(any(AvailabilityOverride.class));
+        verify(notificationService).notifyUser(eq(5L), eq(NotificationType.LEAVE_UPDATED), any(), eq("LEAVE_REQUEST"), eq(100L));
     }
 
     @Test
@@ -287,6 +300,7 @@ class LeaveRequestServiceImplTest {
 
         assertThat(rejected.id()).isEqualTo(100L);
         verify(availabilityOverrideRepository, never()).save(any(AvailabilityOverride.class));
+        verify(notificationService).notifyUser(eq(5L), eq(NotificationType.LEAVE_UPDATED), any(), eq("LEAVE_REQUEST"), eq(100L));
     }
 
     @Test
@@ -357,4 +371,3 @@ class LeaveRequestServiceImplTest {
                 .hasMessage("You can only cancel your own leave request");
     }
 }
-

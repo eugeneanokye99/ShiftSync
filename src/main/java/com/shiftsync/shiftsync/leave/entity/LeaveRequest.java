@@ -67,11 +67,11 @@ public class LeaveRequest {
     private String hrNote;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "approved_by")
-    private User approvedBy;
+    @JoinColumn(name = "reviewed_by")
+    private User reviewedBy;
 
-    @Column(name = "approved_at")
-    private LocalDateTime approvedAt;
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
 
     @Column(name = "submitted_at", nullable = false)
     private LocalDateTime submittedAt;

@@ -11,20 +11,23 @@ public final class LeaveRequestSpecification {
     private LeaveRequestSpecification() {
     }
 
-    public static Specification<LeaveRequest> withPendingFilters(
+    public static Specification<LeaveRequest> withFilters(
             Long employeeId,
             Long locationId,
+            LeaveStatus status,
             LocalDate startDate,
             LocalDate endDate
     ) {
-        return Specification.where(hasStatus())
+        return Specification.where(hasStatus(status))
                 .and(hasEmployeeId(employeeId))
                 .and(hasLocationId(locationId))
                 .and(overlapsDateRange(startDate, endDate));
     }
 
-    private static Specification<LeaveRequest> hasStatus() {
-        return (root, _, cb) -> cb.equal(root.get("status"), LeaveStatus.PENDING);
+    private static Specification<LeaveRequest> hasStatus(LeaveStatus status) {
+        return (root, _, cb) -> status == null
+                ? cb.conjunction()
+                : cb.equal(root.get("status"), status);
     }
 
     private static Specification<LeaveRequest> hasEmployeeId(Long employeeId) {
@@ -57,4 +60,3 @@ public final class LeaveRequestSpecification {
         };
     }
 }
-

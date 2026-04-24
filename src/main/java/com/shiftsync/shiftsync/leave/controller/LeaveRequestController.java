@@ -1,10 +1,11 @@
 package com.shiftsync.shiftsync.leave.controller;
 
+import com.shiftsync.shiftsync.common.enums.LeaveStatus;
 import com.shiftsync.shiftsync.common.response.ErrorResponse;
 import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.leave.dto.ApproveLeaveRequest;
 import com.shiftsync.shiftsync.leave.dto.CreateLeaveRequest;
-import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
+import com.shiftsync.shiftsync.leave.dto.GetLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestPageResponse;
 import com.shiftsync.shiftsync.leave.dto.RejectLeaveRequest;
@@ -67,31 +68,33 @@ public class LeaveRequestController {
     @GetMapping
     @PreAuthorize("hasRole('HR_ADMIN')")
     @Operation(
-            summary = "Get pending leave requests",
-            description = "Returns paginated pending leave requests with optional employee, location, and date-range filters."
+            summary = "Get leave requests",
+            description = "Returns paginated leave requests with optional employee, location, status, and date-range filters (FR-LEAVE-06)."
     )
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Pending leave requests retrieved", content = @Content(schema = @Schema(implementation = PendingLeaveRequestPageResponse.class))),
+            @ApiResponse(responseCode = "200", description = "Leave requests retrieved", content = @Content(schema = @Schema(implementation = PendingLeaveRequestPageResponse.class))),
             @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Access denied", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<PendingLeaveRequestPageResponse> getPendingLeaveRequests(
+    public ResponseEntity<PendingLeaveRequestPageResponse> getLeaveRequests(
             @RequestParam(required = false) Long employeeId,
             @RequestParam(required = false) Long locationId,
+            @RequestParam(required = false) LeaveStatus status,
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        GetPendingLeaveRequestsRequest request = new GetPendingLeaveRequestsRequest(
+        GetLeaveRequestsRequest request = new GetLeaveRequestsRequest(
                 employeeId,
                 locationId,
+                status,
                 startDate,
                 endDate,
                 page,
                 size
         );
-        return ResponseEntity.ok(leaveRequestService.getPendingLeaveRequests(request));
+        return ResponseEntity.ok(leaveRequestService.getLeaveRequests(request));
     }
 
     @PatchMapping("/{id}/approve")

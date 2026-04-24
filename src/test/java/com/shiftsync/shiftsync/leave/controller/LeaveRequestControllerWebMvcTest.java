@@ -3,13 +3,14 @@ package com.shiftsync.shiftsync.leave.controller;
 import com.shiftsync.shiftsync.common.enums.LeaveStatus;
 import com.shiftsync.shiftsync.common.enums.LeaveType;
 import com.shiftsync.shiftsync.common.exception.BadRequestException;
+import com.shiftsync.shiftsync.common.exception.DuplicateResourceException;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.config.security.CustomUserDetailsService;
 import com.shiftsync.shiftsync.config.security.JwtAuthenticationFilter;
 import com.shiftsync.shiftsync.config.security.JwtService;
 import com.shiftsync.shiftsync.config.security.SecurityConfig;
-import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
+import com.shiftsync.shiftsync.leave.dto.GetLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestPageResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestResponse;
@@ -173,7 +174,7 @@ class LeaveRequestControllerWebMvcTest {
     @WithMockUser(username = "5", roles = "EMPLOYEE")
     void createLeaveRequest_OverlappingDates_ReturnsConflict() throws Exception {
         when(leaveRequestService.createLeaveRequest(eq(5L), any()))
-                .thenThrow(new InvalidStateException("Leave request overlaps with an existing pending or approved leave request"));
+                .thenThrow(new DuplicateResourceException("Leave request overlaps with an existing pending or approved leave request"));
 
         String body = """
                 {
@@ -191,21 +192,21 @@ class LeaveRequestControllerWebMvcTest {
     }
 
     @Test
-    void getPendingLeaveRequests_WithoutToken_ReturnsUnauthorized() throws Exception {
+    void getLeaveRequests_WithoutToken_ReturnsUnauthorized() throws Exception {
         mockMvc.perform(get("/api/v1/leave-requests"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     @WithMockUser(username = "5", roles = "EMPLOYEE")
-    void getPendingLeaveRequests_WrongRole_ReturnsForbidden() throws Exception {
+    void getLeaveRequests_WrongRole_ReturnsForbidden() throws Exception {
         mockMvc.perform(get("/api/v1/leave-requests"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(username = "1", roles = "HR_ADMIN")
-    void getPendingLeaveRequests_Success_ReturnsOk() throws Exception {
+    void getLeaveRequests_Success_ReturnsOk() throws Exception {
         PendingLeaveRequestResponse item = new PendingLeaveRequestResponse(
                 100L,
                 20L,
@@ -226,7 +227,7 @@ class LeaveRequestControllerWebMvcTest {
                 0
         );
 
-        when(leaveRequestService.getPendingLeaveRequests(any(GetPendingLeaveRequestsRequest.class)))
+        when(leaveRequestService.getLeaveRequests(any(GetLeaveRequestsRequest.class)))
                 .thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/v1/leave-requests")
@@ -241,9 +242,10 @@ class LeaveRequestControllerWebMvcTest {
                 .andExpect(jsonPath("$.content[0].employeeName").value("Employee One"))
                 .andExpect(jsonPath("$.content[0].daysRequested").value(3));
 
-        verify(leaveRequestService).getPendingLeaveRequests(argThat(req ->
+        verify(leaveRequestService).getLeaveRequests(argThat(req ->
                 req.employeeId().equals(20L)
                         && req.locationId().equals(3L)
+                        && req.status() == null
                         && req.startDate().equals(LocalDate.of(2099, 1, 1))
                         && req.endDate().equals(LocalDate.of(2099, 1, 31))
                         && req.page() == 0

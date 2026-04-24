@@ -11,9 +11,21 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.Collection;
 
+/**
+ * The interface Leave request repository.
+ */
 @Repository
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long>, JpaSpecificationExecutor<LeaveRequest> {
 
+    /**
+     * Exists overlapping by employee and statuses boolean.
+     *
+     * @param employeeId the employee id
+     * @param startDate  the start date
+     * @param endDate    the end date
+     * @param statuses   the statuses
+     * @return the boolean
+     */
     @Query("""
             select case when count(lr) > 0 then true else false end
             from LeaveRequest lr

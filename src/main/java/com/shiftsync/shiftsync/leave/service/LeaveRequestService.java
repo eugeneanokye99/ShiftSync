@@ -2,7 +2,7 @@ package com.shiftsync.shiftsync.leave.service;
 
 import com.shiftsync.shiftsync.leave.dto.ApproveLeaveRequest;
 import com.shiftsync.shiftsync.leave.dto.CreateLeaveRequest;
-import com.shiftsync.shiftsync.leave.dto.GetPendingLeaveRequestsRequest;
+import com.shiftsync.shiftsync.leave.dto.GetLeaveRequestsRequest;
 import com.shiftsync.shiftsync.leave.dto.LeaveRequestResponse;
 import com.shiftsync.shiftsync.leave.dto.PendingLeaveRequestPageResponse;
 import com.shiftsync.shiftsync.leave.dto.RejectLeaveRequest;
@@ -51,11 +51,10 @@ public interface LeaveRequestService {
     LeaveRequestResponse cancelLeaveRequest(Long actorUserId, Long leaveRequestId);
 
     /**
-     * Gets pending leave requests.
+     * Gets leave requests.
      *
      * @param request the request
-     * @return the pending leave requests
+     * @return the leave requests
      */
-    PendingLeaveRequestPageResponse getPendingLeaveRequests(GetPendingLeaveRequestsRequest request);
+    PendingLeaveRequestPageResponse getLeaveRequests(GetLeaveRequestsRequest request);
 }
-

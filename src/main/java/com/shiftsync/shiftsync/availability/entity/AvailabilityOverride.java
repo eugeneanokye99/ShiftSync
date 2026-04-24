@@ -1,8 +1,11 @@
 package com.shiftsync.shiftsync.availability.entity;
 
+import com.shiftsync.shiftsync.common.enums.OverrideSource;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -46,6 +49,10 @@ public class AvailabilityOverride {
 
     @Column(name = "reason")
     private String reason;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", nullable = false)
+    private OverrideSource source;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
