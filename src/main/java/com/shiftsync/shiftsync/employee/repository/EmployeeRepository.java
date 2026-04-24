@@ -3,8 +3,10 @@ package com.shiftsync.shiftsync.employee.repository;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -28,5 +30,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long>, JpaSp
      * @return the optional
      */
     Optional<Employee> findByUserId(Long userId);
+
+    @Query("select e from Employee e join fetch e.user where e.location.id = :locationId and e.active = true")
+    List<Employee> findByLocationIdAndActiveTrueWithUser(Long locationId);
 }
 

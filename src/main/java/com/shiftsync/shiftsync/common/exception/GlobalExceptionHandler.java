@@ -99,6 +99,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
+    @ExceptionHandler(UnprocessableEntityException.class)
+    public ResponseEntity<ErrorResponse> handleUnprocessableEntity(UnprocessableEntityException ex) {
+        log.warn("Unprocessable entity: {}", ex.getMessage());
+        ErrorResponse response = new ErrorResponse(
+                422,
+                "Unprocessable Entity",
+                ex.getMessage()
+        );
+        return ResponseEntity.status(422).body(response);
+    }
+
     @ExceptionHandler({BadCredentialsException.class, AuthenticationException.class})
     public ResponseEntity<ErrorResponse> handleAuthenticationException(Exception ex) {
         log.warn("Authentication failed: {}", ex.getMessage());
