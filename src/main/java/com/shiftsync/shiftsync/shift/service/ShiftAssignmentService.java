@@ -18,5 +18,14 @@ public interface ShiftAssignmentService {
      * @return the assign employee response
      */
     AssignEmployeeResponse assignEmployee(Long actorUserId, Long shiftId, AssignEmployeeRequest request, boolean override);
+
+    /**
+     * Removes an employee from a shift and notifies the employee.
+     *
+     * @param actorUserId the manager's user ID
+     * @param shiftId     the shift ID
+     * @param employeeId  the employee ID to remove
+     */
+    void removeAssignment(Long actorUserId, Long shiftId, Long employeeId);
 }
 
