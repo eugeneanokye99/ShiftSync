@@ -2,7 +2,13 @@ package com.shiftsync.shiftsync.shift.repository;
 
 import com.shiftsync.shiftsync.shift.entity.ShiftAssignment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
 
 /**
  * The interface Shift assignment repository.
@@ -10,13 +16,43 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment, Long> {
 
-    /**
-     * Exists by shift id and employee id boolean.
-     *
-     * @param shiftId    the shift id
-     * @param employeeId the employee id
-     * @return the boolean
-     */
     boolean existsByShiftIdAndEmployeeId(Long shiftId, Long employeeId);
-}
 
+    /**
+     * Returns true if the employee has an overlapping shift assignment on the same date,
+     * excluding the given shift itself.
+     */
+    @Query("""
+            select (count(sa) > 0)
+            from ShiftAssignment sa
+            where sa.employee.id = :employeeId
+              and sa.shift.id <> :shiftId
+              and sa.shift.shiftDate = :shiftDate
+              and sa.shift.startTime < :endTime
+              and sa.shift.endTime > :startTime
+            """)
+    boolean existsOverlappingAssignment(
+            @Param("employeeId") Long employeeId,
+            @Param("shiftId") Long shiftId,
+            @Param("shiftDate") LocalDate shiftDate,
+            @Param("startTime") LocalTime startTime,
+            @Param("endTime") LocalTime endTime
+    );
+
+    /**
+     * Returns all assignments for an employee within a given week range, with shift eagerly joined.
+     */
+    @Query("""
+            select sa
+            from ShiftAssignment sa
+            join fetch sa.shift s
+            where sa.employee.id = :employeeId
+              and s.shiftDate >= :weekStart
+              and s.shiftDate <= :weekEnd
+            """)
+    List<ShiftAssignment> findByEmployeeInWeek(
+            @Param("employeeId") Long employeeId,
+            @Param("weekStart") LocalDate weekStart,
+            @Param("weekEnd") LocalDate weekEnd
+    );
+}

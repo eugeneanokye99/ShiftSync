@@ -5,12 +5,16 @@ import com.shiftsync.shiftsync.auth.repository.UserRepository;
 import com.shiftsync.shiftsync.availability.entity.RecurringAvailability;
 import com.shiftsync.shiftsync.availability.repository.AvailabilityOverrideRepository;
 import com.shiftsync.shiftsync.availability.repository.RecurringAvailabilityRepository;
+import com.shiftsync.shiftsync.common.enums.LeaveStatus;
+import com.shiftsync.shiftsync.common.enums.NotificationType;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
 import com.shiftsync.shiftsync.common.exception.UnprocessableEntityException;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
+import com.shiftsync.shiftsync.leave.repository.LeaveRequestRepository;
 import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
+import com.shiftsync.shiftsync.notification.service.NotificationService;
 import com.shiftsync.shiftsync.shift.dto.AssignEmployeeRequest;
 import com.shiftsync.shiftsync.shift.dto.AssignEmployeeResponse;
 import com.shiftsync.shiftsync.shift.entity.Shift;
@@ -24,6 +28,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -31,6 +38,7 @@ import java.util.List;
 public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
 
     private static final String AVAILABILITY_MISMATCH = "AVAILABILITY_MISMATCH";
+    private static final String OVERTIME_RISK = "OVERTIME_RISK";
 
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
@@ -39,6 +47,8 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
     private final ManagerLocationRepository managerLocationRepository;
     private final RecurringAvailabilityRepository recurringAvailabilityRepository;
     private final AvailabilityOverrideRepository availabilityOverrideRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional
@@ -69,17 +79,42 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
             throw new InvalidStateException("Employee is already assigned to this shift");
         }
 
-        // TODO (Week 3 - FR-CONFLICT-01): reject if employee already assigned to an overlapping shift -> 409
-        // TODO (Week 3 - FR-CONFLICT-02): reject if shift falls within an approved leave period -> 409
+        boolean doubleBooked = shiftAssignmentRepository.existsOverlappingAssignment(
+                employee.getId(),
+                shiftId,
+                shift.getShiftDate(),
+                shift.getStartTime(),
+                shift.getEndTime()
+        );
+        if (doubleBooked) {
+            throw new InvalidStateException("Employee is already assigned to an overlapping shift on this date");
+        }
 
-        boolean availabilityMismatch = isAvailabilityMismatch(employee.getId(), shift);
+        boolean onApprovedLeave = leaveRequestRepository.existsOverlappingByEmployeeAndStatuses(
+                employee.getId(),
+                shift.getShiftDate(),
+                shift.getShiftDate(),
+                List.of(LeaveStatus.APPROVED)
+        );
+        if (onApprovedLeave) {
+            throw new InvalidStateException("Employee has approved leave that overlaps with this shift");
+        }
 
-        // TODO (Week 3 - FR-CONFLICT-04): add overtime threshold warning to conflicts list
-        if (availabilityMismatch && !override) {
+        List<String> conflicts = new ArrayList<>();
+
+        if (isAvailabilityMismatch(employee.getId(), shift)) {
+            conflicts.add(AVAILABILITY_MISMATCH);
+        }
+
+        if (isOvertimeRisk(employee, shift)) {
+            conflicts.add(OVERTIME_RISK);
+        }
+
+        if (!conflicts.isEmpty() && !override) {
             return new AssignEmployeeResponse(
                     "WARNING",
-                    List.of(AVAILABILITY_MISMATCH),
-                    "Employee availability does not match this shift. Re-submit with override=true to proceed.",
+                    conflicts,
+                    "Conflicts detected. Re-submit with override=true to proceed.",
                     null
             );
         }
@@ -91,18 +126,26 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
                 .shift(shift)
                 .employee(employee)
                 .assignedBy(assignedBy)
-                .overrideApplied(availabilityMismatch)
-                .overrideReason(availabilityMismatch ? AVAILABILITY_MISMATCH : null)
+                .overrideApplied(!conflicts.isEmpty())
+                .overrideReason(!conflicts.isEmpty() ? String.join(", ", conflicts) : null)
                 .build();
 
         ShiftAssignment saved = shiftAssignmentRepository.save(assignment);
 
-        return new AssignEmployeeResponse(
-                "ASSIGNED",
-                List.of(),
-                "Employee assigned successfully",
-                saved.getId()
+        String message = String.format(
+                "You have been assigned to a shift on %s from %s to %s at %s.",
+                shift.getShiftDate(), shift.getStartTime(), shift.getEndTime(),
+                shift.getLocation().getName()
         );
+        notificationService.notifyUser(
+                employee.getUser().getId(),
+                NotificationType.SHIFT_ASSIGNED,
+                message,
+                "SHIFT",
+                shift.getId()
+        );
+
+        return new AssignEmployeeResponse("ASSIGNED", List.of(), "Employee assigned successfully", saved.getId());
     }
 
     private boolean isAvailabilityMismatch(Long employeeId, Shift shift) {
@@ -128,5 +171,22 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
                         && !shift.getEndTime().isAfter(window.getEndTime())
         );
     }
-}
 
+    private boolean isOvertimeRisk(Employee employee, Shift shift) {
+        var weekStart = shift.getShiftDate().with(DayOfWeek.MONDAY);
+        var weekEnd = shift.getShiftDate().with(DayOfWeek.SUNDAY);
+
+        List<ShiftAssignment> weekAssignments = shiftAssignmentRepository
+                .findByEmployeeInWeek(employee.getId(), weekStart, weekEnd);
+
+        double assignedHours = weekAssignments.stream()
+                .mapToDouble(a -> ChronoUnit.MINUTES.between(
+                        a.getShift().getStartTime(), a.getShift().getEndTime()) / 60.0)
+                .sum();
+
+        double newShiftHours = ChronoUnit.MINUTES.between(
+                shift.getStartTime(), shift.getEndTime()) / 60.0;
+
+        return (assignedHours + newShiftHours) > employee.getContractedWeeklyHours().doubleValue();
+    }
+}
