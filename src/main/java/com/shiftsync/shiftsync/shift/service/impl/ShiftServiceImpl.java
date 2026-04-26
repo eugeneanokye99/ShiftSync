@@ -16,6 +16,7 @@ import com.shiftsync.shiftsync.location.repository.LocationRepository;
 import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
 import com.shiftsync.shiftsync.notification.service.NotificationService;
 import com.shiftsync.shiftsync.shift.dto.CreateShiftRequest;
+import com.shiftsync.shiftsync.shift.dto.EmployeeShiftResponse;
 import com.shiftsync.shiftsync.shift.dto.ShiftResponse;
 import com.shiftsync.shiftsync.shift.entity.Shift;
 import com.shiftsync.shiftsync.shift.entity.ShiftAssignment;
@@ -28,8 +29,12 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -130,6 +135,53 @@ public class ShiftServiceImpl implements ShiftService {
                     shift.getId()
             );
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EmployeeShiftResponse> getMyShifts(Long actorUserId, LocalDate from, LocalDate to, boolean includeCancelled) {
+        Employee employee = employeeRepository.findByUserId(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found"));
+
+        List<ShiftStatus> statuses = includeCancelled
+                ? List.of(ShiftStatus.OPEN, ShiftStatus.CANCELLED)
+                : List.of(ShiftStatus.OPEN);
+
+        List<ShiftAssignment> assignments = shiftAssignmentRepository
+                .findByEmployeeInRange(employee.getId(), from, to, statuses);
+
+        if (assignments.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> shiftIds = assignments.stream()
+                .map(a -> a.getShift().getId())
+                .collect(Collectors.toSet());
+
+        Map<Long, List<String>> colleaguesByShift = shiftAssignmentRepository
+                .findColleaguesByShiftIds(shiftIds, employee.getId())
+                .stream()
+                .collect(Collectors.groupingBy(
+                        a -> a.getShift().getId(),
+                        Collectors.mapping(a -> a.getEmployee().getUser().getFullName(), Collectors.toList())
+                ));
+
+        return assignments.stream()
+                .map(a -> {
+                    Shift shift = a.getShift();
+                    List<String> colleagues = colleaguesByShift.getOrDefault(shift.getId(), List.of());
+                    return new EmployeeShiftResponse(
+                            shift.getId(),
+                            shift.getShiftDate(),
+                            shift.getStartTime(),
+                            shift.getEndTime(),
+                            shift.getLocation().getName(),
+                            shift.getDepartment().getName(),
+                            shift.getStatus().name(),
+                            colleagues
+                    );
+                })
+                .collect(Collectors.toList());
     }
 
     private ShiftResponse toResponse(Shift shift) {
