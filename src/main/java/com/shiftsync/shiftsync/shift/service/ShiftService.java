@@ -13,4 +13,12 @@ public interface ShiftService {
      * @return the created shift response
      */
     ShiftResponse createShift(Long actorUserId, CreateShiftRequest request);
+
+    /**
+     * Cancels a shift and notifies all assigned employees.
+     *
+     * @param actorUserId the ID of the authenticated user performing the cancel
+     * @param shiftId     the shift to cancel
+     */
+    void cancelShift(Long actorUserId, Long shiftId);
 }

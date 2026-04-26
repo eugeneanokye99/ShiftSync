@@ -42,6 +42,15 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
 
     Optional<ShiftAssignment> findByShiftIdAndEmployeeId(Long shiftId, Long employeeId);
 
+    @Query("""
+            select sa
+            from ShiftAssignment sa
+            join fetch sa.employee e
+            join fetch e.user u
+            where sa.shift.id = :shiftId
+            """)
+    List<ShiftAssignment> findByShiftId(@Param("shiftId") Long shiftId);
+
     /**
      * Returns all assignments for an employee within a given week range, with shift eagerly joined.
      */

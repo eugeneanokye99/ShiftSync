@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -56,5 +58,27 @@ public class ShiftController {
                         .buildAndExpand(response.id())
                         .toUri())
                 .body(response);
+    }
+
+    @PatchMapping("/{shiftId}/cancel")
+    @PreAuthorize("hasAnyRole('MANAGER', 'HR_ADMIN')")
+    @Operation(
+            summary = "Cancel a shift",
+            description = "Cancels a shift and notifies all assigned employees. Managers must be assigned to the shift's location."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Shift cancelled"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Manager not assigned to the location", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Shift not found", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Shift already cancelled", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<Void> cancelShift(
+            Authentication authentication,
+            @PathVariable Long shiftId
+    ) {
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
+        shiftService.cancelShift(actorUserId, shiftId);
+        return ResponseEntity.noContent().build();
     }
 }
