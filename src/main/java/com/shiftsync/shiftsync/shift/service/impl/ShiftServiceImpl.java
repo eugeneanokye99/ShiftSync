@@ -7,6 +7,7 @@ import com.shiftsync.shiftsync.common.enums.UserRole;
 import com.shiftsync.shiftsync.common.exception.BadRequestException;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
+import com.shiftsync.shiftsync.config.CacheConfig;
 import com.shiftsync.shiftsync.department.entity.Department;
 import com.shiftsync.shiftsync.department.repository.DepartmentRepository;
 import com.shiftsync.shiftsync.employee.entity.Employee;
@@ -15,16 +16,22 @@ import com.shiftsync.shiftsync.location.entity.Location;
 import com.shiftsync.shiftsync.location.repository.LocationRepository;
 import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
 import com.shiftsync.shiftsync.notification.service.NotificationService;
+import com.shiftsync.shiftsync.shift.dto.AssigneeInfo;
 import com.shiftsync.shiftsync.shift.dto.CreateShiftRequest;
 import com.shiftsync.shiftsync.shift.dto.EmployeeShiftResponse;
+import com.shiftsync.shiftsync.shift.dto.LocationShiftPageResponse;
+import com.shiftsync.shiftsync.shift.dto.LocationShiftResponse;
 import com.shiftsync.shiftsync.shift.dto.ShiftResponse;
 import com.shiftsync.shiftsync.shift.entity.Shift;
 import com.shiftsync.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shiftsync.shift.entity.ShiftStatus;
+import com.shiftsync.shiftsync.shift.entity.StaffingStatus;
 import com.shiftsync.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shiftsync.shift.repository.ShiftRepository;
 import com.shiftsync.shiftsync.shift.service.ShiftService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,6 +58,7 @@ public class ShiftServiceImpl implements ShiftService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.LOCATION_SHIFTS, allEntries = true)
     public ShiftResponse createShift(Long actorUserId, CreateShiftRequest request) {
         if (!request.endTime().isAfter(request.startTime())) {
             throw new BadRequestException("End time must be after start time");
@@ -96,6 +104,7 @@ public class ShiftServiceImpl implements ShiftService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.LOCATION_SHIFTS, allEntries = true)
     public void cancelShift(Long actorUserId, Long shiftId) {
         User actor = userRepository.findById(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -182,6 +191,79 @@ public class ShiftServiceImpl implements ShiftService {
                     );
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.LOCATION_SHIFTS,
+            key = "#locationId + ':' + #from + ':' + #to + ':' + (#departmentId ?: 'all') + ':' + #page")
+    public LocationShiftPageResponse getLocationShifts(Long actorUserId, Long locationId, LocalDate from, LocalDate to,
+                                                       Long departmentId, int page, int size) {
+        User actor = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (actor.getRole() == UserRole.MANAGER) {
+            Employee manager = employeeRepository.findByUserId(actorUserId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Manager profile not found"));
+            List<Long> assignedLocations = managerLocationRepository.findLocationIdsByManagerEmployeeId(manager.getId());
+            if (!assignedLocations.contains(locationId)) {
+                throw new AccessDeniedException("You are not assigned to this location");
+            }
+        }
+
+        List<Shift> allShifts = shiftRepository.findByLocationInRange(locationId, from, to);
+
+        List<Shift> filtered = departmentId != null
+                ? allShifts.stream().filter(s -> s.getDepartment().getId().equals(departmentId)).collect(Collectors.toList())
+                : allShifts;
+
+        int totalElements = filtered.size();
+        int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
+        int start = page * size;
+        List<Shift> pageContent = start >= totalElements ? List.of() : filtered.subList(start, Math.min(start + size, totalElements));
+
+        if (pageContent.isEmpty()) {
+            return new LocationShiftPageResponse(List.of(), totalElements, totalPages, page);
+        }
+
+        Set<Long> shiftIds = pageContent.stream().map(Shift::getId).collect(Collectors.toSet());
+
+        Map<Long, List<ShiftAssignment>> assignmentsByShift = shiftAssignmentRepository
+                .findAssignmentsByShiftIds(shiftIds)
+                .stream()
+                .collect(Collectors.groupingBy(a -> a.getShift().getId()));
+
+        List<LocationShiftResponse> content = pageContent.stream()
+                .map(shift -> {
+                    List<ShiftAssignment> shiftAssignments = assignmentsByShift.getOrDefault(shift.getId(), List.of());
+                    int assignedCount = shiftAssignments.size();
+                    List<AssigneeInfo> assignees = shiftAssignments.stream()
+                            .map(a -> new AssigneeInfo(
+                                    a.getEmployee().getUser().getFullName(),
+                                    a.getEmployee().getEmploymentType().name()
+                            ))
+                            .collect(Collectors.toList());
+                    return new LocationShiftResponse(
+                            shift.getId(),
+                            shift.getShiftDate(),
+                            shift.getStartTime(),
+                            shift.getEndTime(),
+                            shift.getDepartment().getName(),
+                            shift.getMinimumHeadcount(),
+                            assignedCount,
+                            resolveStaffingStatus(assignedCount, shift.getMinimumHeadcount()),
+                            assignees
+                    );
+                })
+                .collect(Collectors.toList());
+
+        return new LocationShiftPageResponse(content, totalElements, totalPages, page);
+    }
+
+    private StaffingStatus resolveStaffingStatus(int assignedCount, int minimumHeadcount) {
+        if (assignedCount < minimumHeadcount) return StaffingStatus.UNDERSTAFFED;
+        if (assignedCount == minimumHeadcount) return StaffingStatus.FULLY_STAFFED;
+        return StaffingStatus.OVERSTAFFED;
     }
 
     private ShiftResponse toResponse(Shift shift) {

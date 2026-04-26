@@ -2,6 +2,7 @@ package com.shiftsync.shiftsync.shift.service;
 
 import com.shiftsync.shiftsync.shift.dto.CreateShiftRequest;
 import com.shiftsync.shiftsync.shift.dto.EmployeeShiftResponse;
+import com.shiftsync.shiftsync.shift.dto.LocationShiftPageResponse;
 import com.shiftsync.shiftsync.shift.dto.ShiftResponse;
 
 import java.time.LocalDate;
@@ -36,4 +37,18 @@ public interface ShiftService {
      * @return list of shift responses with colleague info
      */
     List<EmployeeShiftResponse> getMyShifts(Long actorUserId, LocalDate from, LocalDate to, boolean includeCancelled);
+
+    /**
+     * Returns a paginated shift schedule for a location, with staffing status per shift.
+     *
+     * @param actorUserId  the authenticated user's ID
+     * @param locationId   the location to query
+     * @param from         start of the date range (inclusive)
+     * @param to           end of the date range (inclusive)
+     * @param departmentId optional department filter
+     * @param page         zero-based page number
+     * @param size         page size
+     * @return paginated location shift schedule
+     */
+    LocationShiftPageResponse getLocationShifts(Long actorUserId, Long locationId, LocalDate from, LocalDate to, Long departmentId, int page, int size);
 }

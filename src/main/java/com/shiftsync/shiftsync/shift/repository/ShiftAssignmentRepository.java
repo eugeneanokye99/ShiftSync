@@ -101,4 +101,13 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("shiftIds") Collection<Long> shiftIds,
             @Param("excludeEmployeeId") Long excludeEmployeeId
     );
+
+    @Query("""
+            select sa
+            from ShiftAssignment sa
+            join fetch sa.employee e
+            join fetch e.user u
+            where sa.shift.id in :shiftIds
+            """)
+    List<ShiftAssignment> findAssignmentsByShiftIds(@Param("shiftIds") Collection<Long> shiftIds);
 }

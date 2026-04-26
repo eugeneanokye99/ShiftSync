@@ -7,6 +7,8 @@ import com.shiftsync.shiftsync.availability.repository.AvailabilityOverrideRepos
 import com.shiftsync.shiftsync.availability.repository.RecurringAvailabilityRepository;
 import com.shiftsync.shiftsync.common.enums.LeaveStatus;
 import com.shiftsync.shiftsync.common.enums.NotificationType;
+import com.shiftsync.shiftsync.config.CacheConfig;
+import org.springframework.cache.annotation.CacheEvict;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
 import com.shiftsync.shiftsync.common.exception.UnprocessableEntityException;
@@ -52,6 +54,7 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.LOCATION_SHIFTS, allEntries = true)
     public AssignEmployeeResponse assignEmployee(Long actorUserId, Long shiftId, AssignEmployeeRequest request, boolean override) {
         Employee manager = employeeRepository.findByUserId(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Manager profile not found"));
@@ -150,6 +153,7 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.LOCATION_SHIFTS, allEntries = true)
     public void removeAssignment(Long actorUserId, Long shiftId, Long employeeId) {
         Employee manager = employeeRepository.findByUserId(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Manager profile not found"));

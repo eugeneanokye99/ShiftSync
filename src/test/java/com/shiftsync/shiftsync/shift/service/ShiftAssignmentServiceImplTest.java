@@ -6,13 +6,16 @@ import com.shiftsync.shiftsync.availability.entity.RecurringAvailability;
 import com.shiftsync.shiftsync.availability.repository.AvailabilityOverrideRepository;
 import com.shiftsync.shiftsync.availability.repository.RecurringAvailabilityRepository;
 import com.shiftsync.shiftsync.common.enums.EmploymentType;
+import com.shiftsync.shiftsync.common.enums.LeaveStatus;
 import com.shiftsync.shiftsync.common.enums.UserRole;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.UnprocessableEntityException;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
+import com.shiftsync.shiftsync.leave.repository.LeaveRequestRepository;
 import com.shiftsync.shiftsync.location.entity.Location;
 import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
+import com.shiftsync.shiftsync.notification.service.NotificationService;
 import com.shiftsync.shiftsync.shift.dto.AssignEmployeeRequest;
 import com.shiftsync.shiftsync.shift.dto.AssignEmployeeResponse;
 import com.shiftsync.shiftsync.shift.entity.Shift;
@@ -66,6 +69,12 @@ class ShiftAssignmentServiceImplTest {
 
     @Mock
     private AvailabilityOverrideRepository availabilityOverrideRepository;
+
+    @Mock
+    private LeaveRequestRepository leaveRequestRepository;
+
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private ShiftAssignmentServiceImpl shiftAssignmentService;
@@ -234,6 +243,99 @@ class ShiftAssignmentServiceImplTest {
         assertThatThrownBy(() -> shiftAssignmentService.assignEmployee(5L, 100L, new AssignEmployeeRequest(20L), false))
                 .isInstanceOf(UnprocessableEntityException.class)
                 .hasMessage("Cannot assign an inactive employee to a shift");
+    }
+
+    @Test
+    void assignEmployee_DoubleBooked_ThrowsConflict() {
+        when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
+        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
+        when(shiftAssignmentRepository.existsByShiftIdAndEmployeeId(100L, 20L)).thenReturn(false);
+        when(shiftAssignmentRepository.existsOverlappingAssignment(
+                eq(20L), eq(100L), any(), any(), any())).thenReturn(true);
+
+        assertThatThrownBy(() -> shiftAssignmentService.assignEmployee(5L, 100L, new AssignEmployeeRequest(20L), false))
+                .isInstanceOf(InvalidStateException.class)
+                .hasMessageContaining("overlapping shift");
+    }
+
+    @Test
+    void assignEmployee_OnApprovedLeave_ThrowsConflict() {
+        when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
+        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
+        when(shiftAssignmentRepository.existsByShiftIdAndEmployeeId(100L, 20L)).thenReturn(false);
+        when(shiftAssignmentRepository.existsOverlappingAssignment(any(), any(), any(), any(), any())).thenReturn(false);
+        when(leaveRequestRepository.existsOverlappingByEmployeeAndStatuses(
+                eq(20L), any(), any(), eq(List.of(LeaveStatus.APPROVED)))).thenReturn(true);
+
+        assertThatThrownBy(() -> shiftAssignmentService.assignEmployee(5L, 100L, new AssignEmployeeRequest(20L), false))
+                .isInstanceOf(InvalidStateException.class)
+                .hasMessageContaining("approved leave");
+    }
+
+    @Test
+    void assignEmployee_OvertimeRisk_ReturnsWarning() {
+        RecurringAvailability recurring = RecurringAvailability.builder()
+                .employee(employee)
+                .dayOfWeek(java.time.DayOfWeek.MONDAY)
+                .startTime(LocalTime.of(8, 0))
+                .endTime(LocalTime.of(18, 0))
+                .build();
+
+        ShiftAssignment existing = ShiftAssignment.builder()
+                .shift(Shift.builder()
+                        .startTime(LocalTime.of(9, 0)).endTime(LocalTime.of(17, 0))
+                        .build())
+                .build();
+
+        when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
+        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
+        when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
+        when(shiftAssignmentRepository.existsByShiftIdAndEmployeeId(100L, 20L)).thenReturn(false);
+        when(shiftAssignmentRepository.existsOverlappingAssignment(any(), any(), any(), any(), any())).thenReturn(false);
+        when(leaveRequestRepository.existsOverlappingByEmployeeAndStatuses(any(), any(), any(), any())).thenReturn(false);
+        when(availabilityOverrideRepository.hasOverlap(any(), any(), any())).thenReturn(false);
+        when(recurringAvailabilityRepository.findByEmployeeAndDay(any(), any())).thenReturn(List.of(recurring));
+        when(shiftAssignmentRepository.findByEmployeeInWeek(any(), any(), any()))
+                .thenReturn(List.of(existing, existing, existing, existing, existing));
+
+        AssignEmployeeResponse response = shiftAssignmentService.assignEmployee(5L, 100L, new AssignEmployeeRequest(20L), false);
+
+        assertThat(response.status()).isEqualTo("WARNING");
+        assertThat(response.conflicts()).contains("OVERTIME_RISK");
+    }
+
+    @Test
+    void removeAssignment_ExistingAssignment_DeletesAndNotifies() {
+        ShiftAssignment assignment = ShiftAssignment.builder()
+                .id(1L).shift(shift).employee(employee).assignedBy(managerUser)
+                .overrideApplied(false).build();
+
+        when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
+        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
+        when(shiftAssignmentRepository.findByShiftIdAndEmployeeId(100L, 20L)).thenReturn(Optional.of(assignment));
+
+        shiftAssignmentService.removeAssignment(5L, 100L, 20L);
+
+        verify(shiftAssignmentRepository).delete(assignment);
+        verify(notificationService).notifyUser(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void removeAssignment_AssignmentNotFound_ThrowsNotFound() {
+        when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
+        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
+        when(shiftAssignmentRepository.findByShiftIdAndEmployeeId(100L, 20L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> shiftAssignmentService.removeAssignment(5L, 100L, 20L))
+                .isInstanceOf(com.shiftsync.shiftsync.common.exception.ResourceNotFoundException.class)
+                .hasMessage("Assignment not found");
     }
 }
 
