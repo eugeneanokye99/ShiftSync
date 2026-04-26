@@ -110,4 +110,21 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             where sa.shift.id in :shiftIds
             """)
     List<ShiftAssignment> findAssignmentsByShiftIds(@Param("shiftIds") Collection<Long> shiftIds);
+
+    @Query("""
+            select (count(sa) > 0)
+            from ShiftAssignment sa
+            where sa.employee.id = :employeeId
+              and sa.shift.id not in :excludedShiftIds
+              and sa.shift.shiftDate = :shiftDate
+              and sa.shift.startTime < :endTime
+              and sa.shift.endTime > :startTime
+            """)
+    boolean existsConflictExcluding(
+            @Param("employeeId") Long employeeId,
+            @Param("excludedShiftIds") Collection<Long> excludedShiftIds,
+            @Param("shiftDate") LocalDate shiftDate,
+            @Param("startTime") LocalTime startTime,
+            @Param("endTime") LocalTime endTime
+    );
 }
