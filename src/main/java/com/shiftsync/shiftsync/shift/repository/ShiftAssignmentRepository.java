@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The interface Shift assignment repository.
@@ -38,6 +39,8 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("startTime") LocalTime startTime,
             @Param("endTime") LocalTime endTime
     );
+
+    Optional<ShiftAssignment> findByShiftIdAndEmployeeId(Long shiftId, Long employeeId);
 
     /**
      * Returns all assignments for an employee within a given week range, with shift eagerly joined.

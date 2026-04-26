@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -61,6 +62,28 @@ public class ShiftAssignmentController {
         }
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @DeleteMapping("/{shiftId}/assignments/{employeeId}")
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(
+            summary = "Remove employee from shift",
+            description = "Removes an employee assignment from a shift and notifies the employee."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Assignment removed"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Shift or assignment not found", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<Void> removeAssignment(
+            Authentication authentication,
+            @PathVariable Long shiftId,
+            @PathVariable Long employeeId
+    ) {
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
+        shiftAssignmentService.removeAssignment(actorUserId, shiftId, employeeId);
+        return ResponseEntity.noContent().build();
     }
 }
 

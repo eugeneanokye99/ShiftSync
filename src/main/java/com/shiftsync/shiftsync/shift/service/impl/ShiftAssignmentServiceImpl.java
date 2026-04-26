@@ -148,6 +148,39 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
         return new AssignEmployeeResponse("ASSIGNED", List.of(), "Employee assigned successfully", saved.getId());
     }
 
+    @Override
+    @Transactional
+    public void removeAssignment(Long actorUserId, Long shiftId, Long employeeId) {
+        Employee manager = employeeRepository.findByUserId(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Manager profile not found"));
+
+        Shift shift = shiftRepository.findById(shiftId)
+                .orElseThrow(() -> new ResourceNotFoundException("Shift not found"));
+
+        List<Long> assignedLocations = managerLocationRepository.findLocationIdsByManagerEmployeeId(manager.getId());
+        if (!assignedLocations.contains(shift.getLocation().getId())) {
+            throw new AccessDeniedException("You are not assigned to this location");
+        }
+
+        ShiftAssignment assignment = shiftAssignmentRepository.findByShiftIdAndEmployeeId(shiftId, employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Assignment not found"));
+
+        shiftAssignmentRepository.delete(assignment);
+
+        String message = String.format(
+                "You have been removed from the shift on %s from %s to %s at %s.",
+                shift.getShiftDate(), shift.getStartTime(), shift.getEndTime(),
+                shift.getLocation().getName()
+        );
+        notificationService.notifyUser(
+                assignment.getEmployee().getUser().getId(),
+                NotificationType.SHIFT_REMOVED,
+                message,
+                "SHIFT",
+                shift.getId()
+        );
+    }
+
     private boolean isAvailabilityMismatch(Long employeeId, Shift shift) {
         boolean hasOverrideOnDate = availabilityOverrideRepository.hasOverlap(
                 employeeId,
