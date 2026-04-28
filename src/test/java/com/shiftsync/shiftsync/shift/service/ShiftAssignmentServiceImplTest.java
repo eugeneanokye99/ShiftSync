@@ -321,7 +321,7 @@ class ShiftAssignmentServiceImplTest {
                 .overrideApplied(false).build();
 
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(shiftAssignmentRepository.findByShiftIdAndEmployeeId(100L, 20L)).thenReturn(Optional.of(assignment));
 
@@ -334,7 +334,7 @@ class ShiftAssignmentServiceImplTest {
     @Test
     void removeAssignment_AssignmentNotFound_ThrowsNotFound() {
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(shiftAssignmentRepository.findByShiftIdAndEmployeeId(100L, 20L)).thenReturn(Optional.empty());
 
