@@ -149,7 +149,7 @@ class ShiftAssignmentServiceImplTest {
     @Test
     void assignEmployee_OutsideAvailability_ReturnsWarningAndDoesNotSave() {
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
         when(shiftAssignmentRepository.existsByShiftIdAndEmployeeId(100L, 20L)).thenReturn(false);
@@ -166,7 +166,7 @@ class ShiftAssignmentServiceImplTest {
     @Test
     void assignEmployee_OutsideAvailabilityWithOverride_CreatesAssignment() {
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
         when(shiftAssignmentRepository.existsByShiftIdAndEmployeeId(100L, 20L)).thenReturn(false);
@@ -194,7 +194,7 @@ class ShiftAssignmentServiceImplTest {
                 .build();
 
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
         when(shiftAssignmentRepository.existsByShiftIdAndEmployeeId(100L, 20L)).thenReturn(false);
@@ -216,7 +216,7 @@ class ShiftAssignmentServiceImplTest {
     @Test
     void assignEmployee_ManagerNotAssignedToLocation_ThrowsForbidden() {
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(2L));
 
         assertThatThrownBy(() -> shiftAssignmentService.assignEmployee(5L, 100L, new AssignEmployeeRequest(20L), false))
@@ -228,7 +228,7 @@ class ShiftAssignmentServiceImplTest {
     void assignEmployee_CancelledShift_ThrowsConflict() {
         shift.setStatus(ShiftStatus.CANCELLED);
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
 
         assertThatThrownBy(() -> shiftAssignmentService.assignEmployee(5L, 100L, new AssignEmployeeRequest(20L), false))
                 .isInstanceOf(InvalidStateException.class)
@@ -240,7 +240,7 @@ class ShiftAssignmentServiceImplTest {
         employee.setActive(false);
 
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
 
@@ -252,7 +252,7 @@ class ShiftAssignmentServiceImplTest {
     @Test
     void assignEmployee_DoubleBooked_ThrowsConflict() {
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
         when(shiftAssignmentRepository.existsByShiftIdAndEmployeeId(100L, 20L)).thenReturn(false);
@@ -267,7 +267,7 @@ class ShiftAssignmentServiceImplTest {
     @Test
     void assignEmployee_OnApprovedLeave_ThrowsConflict() {
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
         when(shiftAssignmentRepository.existsByShiftIdAndEmployeeId(100L, 20L)).thenReturn(false);
@@ -297,7 +297,7 @@ class ShiftAssignmentServiceImplTest {
                 .build();
 
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(employeeRepository.findById(20L)).thenReturn(Optional.of(employee));
         when(shiftAssignmentRepository.existsByShiftIdAndEmployeeId(100L, 20L)).thenReturn(false);
@@ -321,7 +321,7 @@ class ShiftAssignmentServiceImplTest {
                 .overrideApplied(false).build();
 
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(shiftAssignmentRepository.findByShiftIdAndEmployeeId(100L, 20L)).thenReturn(Optional.of(assignment));
 
@@ -334,7 +334,7 @@ class ShiftAssignmentServiceImplTest {
     @Test
     void removeAssignment_AssignmentNotFound_ThrowsNotFound() {
         when(employeeRepository.findByUserId(5L)).thenReturn(Optional.of(manager));
-        when(shiftRepository.findById(100L)).thenReturn(Optional.of(shift));
+        when(shiftRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(shift));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(10L)).thenReturn(List.of(1L));
         when(shiftAssignmentRepository.findByShiftIdAndEmployeeId(100L, 20L)).thenReturn(Optional.empty());
 
