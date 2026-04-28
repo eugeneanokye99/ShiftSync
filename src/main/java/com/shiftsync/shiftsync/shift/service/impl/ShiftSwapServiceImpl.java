@@ -7,6 +7,7 @@ import com.shiftsync.shiftsync.common.enums.NotificationType;
 import com.shiftsync.shiftsync.common.exception.BadRequestException;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
+import com.shiftsync.shiftsync.config.CacheConfig;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.leave.repository.LeaveRequestRepository;
@@ -21,6 +22,7 @@ import com.shiftsync.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shiftsync.shift.repository.ShiftSwapRepository;
 import com.shiftsync.shiftsync.shift.service.ShiftSwapService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -96,6 +98,7 @@ public class ShiftSwapServiceImpl implements ShiftSwapService {
 
     @Override
     @Transactional
+    @CacheEvict(value = CacheConfig.LOCATION_SHIFTS, allEntries = true)
     public void approveSwap(Long actorUserId, Long swapId) {
         User manager = userRepository.findById(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
