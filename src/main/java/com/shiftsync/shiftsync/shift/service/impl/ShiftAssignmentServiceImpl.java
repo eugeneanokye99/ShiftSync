@@ -26,6 +26,7 @@ import com.shiftsync.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shiftsync.shift.repository.ShiftRepository;
 import com.shiftsync.shiftsync.shift.service.ShiftAssignmentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,9 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
 
     private static final String AVAILABILITY_MISMATCH = "AVAILABILITY_MISMATCH";
     private static final String OVERTIME_RISK = "OVERTIME_RISK";
+
+    @Value("${shiftsync.overtime.buffer-multiplier:1.10}")
+    private double overtimeBufferMultiplier;
 
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
@@ -224,6 +228,7 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
         double newShiftHours = ChronoUnit.MINUTES.between(
                 shift.getStartTime(), shift.getEndTime()) / 60.0;
 
-        return (assignedHours + newShiftHours) > employee.getContractedWeeklyHours().doubleValue();
+        double threshold = employee.getContractedWeeklyHours().doubleValue() * overtimeBufferMultiplier;
+        return (assignedHours + newShiftHours) > threshold;
     }
 }

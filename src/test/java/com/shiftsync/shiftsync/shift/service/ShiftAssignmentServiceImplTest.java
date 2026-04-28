@@ -42,6 +42,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import org.springframework.test.util.ReflectionTestUtils;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -141,6 +142,8 @@ class ShiftAssignmentServiceImplTest {
                 .status(ShiftStatus.OPEN)
                 .createdBy(managerUser)
                 .build();
+
+        ReflectionTestUtils.setField(shiftAssignmentService, "overtimeBufferMultiplier", 1.10);
     }
 
     @Test
@@ -286,9 +289,10 @@ class ShiftAssignmentServiceImplTest {
                 .endTime(LocalTime.of(18, 0))
                 .build();
 
+        // 5 × 9h = 45h existing + 4h new shift = 49h > 44h threshold (40h * 1.10)
         ShiftAssignment existing = ShiftAssignment.builder()
                 .shift(Shift.builder()
-                        .startTime(LocalTime.of(9, 0)).endTime(LocalTime.of(17, 0))
+                        .startTime(LocalTime.of(9, 0)).endTime(LocalTime.of(18, 0))
                         .build())
                 .build();
 
