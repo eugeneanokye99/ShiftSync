@@ -195,10 +195,7 @@ public class ShiftServiceImpl implements ShiftService {
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = CacheConfig.LOCATION_SHIFTS,
-            key = "#locationId + ':' + #from + ':' + #to + ':' + (#departmentId ?: 'all') + ':' + #page")
-    public LocationShiftPageResponse getLocationShifts(Long actorUserId, Long locationId, LocalDate from, LocalDate to,
-                                                       Long departmentId, int page, int size) {
+    public void verifyManagerLocationAccess(Long actorUserId, Long locationId) {
         User actor = userRepository.findById(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -210,11 +207,18 @@ public class ShiftServiceImpl implements ShiftService {
                 throw new AccessDeniedException("You are not assigned to this location");
             }
         }
+    }
 
+    @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = CacheConfig.LOCATION_SHIFTS,
+            key = "#locationId + ':' + #from + ':' + #to + ':' + (#departmentId ?: 'all') + ':' + #page")
+    public LocationShiftPageResponse getLocationShifts(Long locationId, LocalDate from, LocalDate to,
+                                                       Long departmentId, int page, int size) {
         List<Shift> allShifts = shiftRepository.findByLocationInRange(locationId, from, to);
 
         List<Shift> filtered = departmentId != null
-                ? allShifts.stream().filter(s -> s.getDepartment().getId().equals(departmentId)).collect(Collectors.toList())
+                ? allShifts.stream().filter(s -> s.getDepartment().getId().equals(departmentId)).toList()
                 : allShifts;
 
         int totalElements = filtered.size();

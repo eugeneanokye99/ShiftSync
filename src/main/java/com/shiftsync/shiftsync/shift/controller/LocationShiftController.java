@@ -54,8 +54,9 @@ public class LocationShiftController {
             @RequestParam(defaultValue = "20") int size
     ) {
         Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
+        shiftService.verifyManagerLocationAccess(actorUserId, locationId);
         LocalDate fromDate = from != null ? from : LocalDate.now();
         LocalDate toDate = to != null ? to : LocalDate.now().plusDays(6);
-        return ResponseEntity.ok(shiftService.getLocationShifts(actorUserId, locationId, fromDate, toDate, departmentId, page, size));
+        return ResponseEntity.ok(shiftService.getLocationShifts(locationId, fromDate, toDate, departmentId, page, size));
     }
 }

@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -257,8 +258,8 @@ class ShiftServiceImplTest {
         );
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).shiftId()).isEqualTo(50L);
-        assertThat(result.get(0).assignedColleagues()).containsExactly("Jane Smith");
+        assertThat(result.getFirst().shiftId()).isEqualTo(50L);
+        assertThat(result.getFirst().assignedColleagues()).containsExactly("Jane Smith");
     }
 
     @Test
@@ -275,33 +276,39 @@ class ShiftServiceImplTest {
     }
 
     @Test
-    void getLocationShifts_ManagerAssignedToLocation_ReturnsPageWithStaffingStatus() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(managerUser));
-        when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(manager));
-        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(100L)).thenReturn(List.of(10L));
+    void getLocationShifts_ReturnsPageWithStaffingStatus() {
         when(shiftRepository.findByLocationInRange(10L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 7)))
                 .thenReturn(List.of(shift));
         when(shiftAssignmentRepository.findAssignmentsByShiftIds(any())).thenReturn(List.of());
 
         LocationShiftPageResponse response = shiftService.getLocationShifts(
-                1L, 10L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 7), null, 0, 20
+                10L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 7), null, 0, 20
         );
 
         assertThat(response.totalElements()).isEqualTo(1);
         assertThat(response.content()).hasSize(1);
-        assertThat(response.content().get(0).staffingStatus()).isEqualTo(StaffingStatus.UNDERSTAFFED);
-        assertThat(response.content().get(0).assignedCount()).isEqualTo(0);
+        assertThat(response.content().getFirst().staffingStatus()).isEqualTo(StaffingStatus.UNDERSTAFFED);
+        assertThat(response.content().getFirst().assignedCount()).isEqualTo(0);
     }
 
     @Test
-    void getLocationShifts_ManagerNotAssigned_ThrowsAccessDenied() {
+    void verifyManagerLocationAccess_ManagerNotAssigned_ThrowsAccessDenied() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(managerUser));
         when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(manager));
         when(managerLocationRepository.findLocationIdsByManagerEmployeeId(100L)).thenReturn(List.of(99L));
 
-        assertThatThrownBy(() -> shiftService.getLocationShifts(
-                1L, 10L, LocalDate.now(), LocalDate.now().plusDays(6), null, 0, 20
-        )).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> shiftService.verifyManagerLocationAccess(1L, 10L))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void verifyManagerLocationAccess_ManagerAssigned_DoesNotThrow() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(managerUser));
+        when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(manager));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(100L)).thenReturn(List.of(10L));
+
+        assertThatCode(() -> shiftService.verifyManagerLocationAccess(1L, 10L))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -312,16 +319,15 @@ class ShiftServiceImplTest {
                 .endTime(LocalTime.of(16, 0)).minimumHeadcount(1).status(ShiftStatus.OPEN)
                 .createdBy(managerUser).build();
 
-        when(userRepository.findById(2L)).thenReturn(Optional.of(hrAdminUser));
         when(shiftRepository.findByLocationInRange(10L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 7)))
                 .thenReturn(List.of(shift, otherShift));
         when(shiftAssignmentRepository.findAssignmentsByShiftIds(any())).thenReturn(List.of());
 
         LocationShiftPageResponse response = shiftService.getLocationShifts(
-                2L, 10L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 7), 20L, 0, 20
+                10L, LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 7), 20L, 0, 20
         );
 
         assertThat(response.totalElements()).isEqualTo(1);
-        assertThat(response.content().get(0).shiftId()).isEqualTo(50L);
+        assertThat(response.content().getFirst().shiftId()).isEqualTo(50L);
     }
 }

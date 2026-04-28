@@ -39,9 +39,15 @@ public interface ShiftService {
     List<EmployeeShiftResponse> getMyShifts(Long actorUserId, LocalDate from, LocalDate to, boolean includeCancelled);
 
     /**
+     * Throws AccessDeniedException if a MANAGER user is not assigned to the given location.
+     * HR_ADMIN users always pass. Call this before the cached getLocationShifts so the guard
+     * is never skipped by a cache hit.
+     */
+    void verifyManagerLocationAccess(Long actorUserId, Long locationId);
+
+    /**
      * Returns a paginated shift schedule for a location, with staffing status per shift.
      *
-     * @param actorUserId  the authenticated user's ID
      * @param locationId   the location to query
      * @param from         start of the date range (inclusive)
      * @param to           end of the date range (inclusive)
@@ -50,5 +56,5 @@ public interface ShiftService {
      * @param size         page size
      * @return paginated location shift schedule
      */
-    LocationShiftPageResponse getLocationShifts(Long actorUserId, Long locationId, LocalDate from, LocalDate to, Long departmentId, int page, int size);
+    LocationShiftPageResponse getLocationShifts(Long locationId, LocalDate from, LocalDate to, Long departmentId, int page, int size);
 }

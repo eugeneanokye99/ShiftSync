@@ -160,7 +160,7 @@ class ShiftControllerWebMvcTest {
     @WithMockUser(username = "1", roles = "MANAGER")
     void getLocationShifts_ValidRequest_ReturnsOk() throws Exception {
         LocationShiftPageResponse response = new LocationShiftPageResponse(List.of(), 0, 0, 0);
-        when(shiftService.getLocationShifts(anyLong(), eq(10L), any(), any(), any(), anyInt(), anyInt()))
+        when(shiftService.getLocationShifts(eq(10L), any(), any(), any(), anyInt(), anyInt()))
                 .thenReturn(response);
 
         mockMvc.perform(get("/api/v1/locations/10/shifts"))
