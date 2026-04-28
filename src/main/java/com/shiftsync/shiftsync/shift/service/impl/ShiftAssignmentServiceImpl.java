@@ -63,7 +63,7 @@ public class ShiftAssignmentServiceImpl implements ShiftAssignmentService {
         Employee manager = employeeRepository.findByUserId(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Manager profile not found"));
 
-        Shift shift = shiftRepository.findById(shiftId)
+        Shift shift = shiftRepository.findByIdForUpdate(shiftId)
                 .orElseThrow(() -> new ResourceNotFoundException("Shift not found"));
 
         if (shift.getStatus() == ShiftStatus.CANCELLED) {
