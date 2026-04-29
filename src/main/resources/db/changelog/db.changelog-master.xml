@@ -10,6 +10,7 @@
     <include file="db/changelog/changes/002-add-employees-notification-enabled.xml"/>
     <include file="db/changelog/changes/003-add-users-must-reset-password.xml"/>
     <include file="db/changelog/changes/004-add-availability-and-shift-tables.xml"/>
-    <include file="db/changelog/changes/005-leave-request-updates.xml"/>
+    <include file="db/changelog/changes/004-leave-request-updates.xml"/>
+    <include file="db/changelog/changes/005-add-shift-swap-table.xml"/>
 
 </databaseChangeLog>
