@@ -9,6 +9,7 @@ import com.shiftsync.shiftsync.config.security.JwtAuthenticationFilter;
 import com.shiftsync.shiftsync.config.security.JwtService;
 import com.shiftsync.shiftsync.config.security.SecurityConfig;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapResponse;
+import com.shiftsync.shiftsync.shift.entity.ShiftSwapStatus;
 import com.shiftsync.shiftsync.shift.service.ShiftSwapService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,12 +24,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -188,5 +192,54 @@ class ShiftSwapControllerWebMvcTest {
 
         mockMvc.perform(patch("/api/v1/shift-swaps/10/reject"))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void getMySwaps_WithoutToken_ReturnsUnauthorized() throws Exception {
+        mockMvc.perform(get("/api/v1/shift-swaps"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "EMPLOYEE")
+    void getMySwaps_AsEmployee_NoFilter_ReturnsOk() throws Exception {
+        ShiftSwapResponse response = new ShiftSwapResponse(
+                10L, 100L, "Alice",
+                LocalDate.of(2026, 6, 1), LocalTime.of(9, 0), LocalTime.of(17, 0),
+                200L, "Bob", null, null, null,
+                "PENDING_MANAGER_APPROVAL", null, null, LocalDateTime.now()
+        );
+        when(shiftSwapService.getMySwaps(anyLong(), isNull())).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/v1/shift-swaps"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(10))
+                .andExpect(jsonPath("$[0].requesterName").value("Alice"))
+                .andExpect(jsonPath("$[0].status").value("PENDING_MANAGER_APPROVAL"));
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "EMPLOYEE")
+    void getMySwaps_AsEmployee_WithStatusFilter_ReturnsOk() throws Exception {
+        ShiftSwapResponse response = new ShiftSwapResponse(
+                11L, 100L, "Alice",
+                LocalDate.of(2026, 6, 1), LocalTime.of(9, 0), LocalTime.of(17, 0),
+                200L, "Bob", null, null, null,
+                "APPROVED", null, null, LocalDateTime.now()
+        );
+        when(shiftSwapService.getMySwaps(anyLong(), eq(ShiftSwapStatus.APPROVED))).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/v1/shift-swaps").param("status", "APPROVED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("APPROVED"));
+    }
+
+    @Test
+    @WithMockUser(username = "3", roles = "MANAGER")
+    void getMySwaps_AsManager_ReturnsOk() throws Exception {
+        when(shiftSwapService.getMySwaps(anyLong(), isNull())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/shift-swaps"))
+                .andExpect(status().isOk());
     }
 }
