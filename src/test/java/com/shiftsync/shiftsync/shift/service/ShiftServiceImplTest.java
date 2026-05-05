@@ -19,6 +19,7 @@ import com.shiftsync.shiftsync.shift.dto.CreateShiftRequest;
 import com.shiftsync.shiftsync.shift.dto.EmployeeShiftResponse;
 import com.shiftsync.shiftsync.shift.dto.LocationShiftPageResponse;
 import com.shiftsync.shiftsync.shift.dto.ShiftResponse;
+import com.shiftsync.shiftsync.shift.dto.UpdateShiftRequest;
 import com.shiftsync.shiftsync.shift.entity.Shift;
 import com.shiftsync.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shiftsync.shift.entity.ShiftStatus;
@@ -329,5 +330,83 @@ class ShiftServiceImplTest {
 
         assertThat(response.totalElements()).isEqualTo(1);
         assertThat(response.content().getFirst().shiftId()).isEqualTo(50L);
+    }
+
+    @Test
+    void updateShift_ValidRequest_UpdatesFieldsAndNotifiesAssignees() {
+        ShiftAssignment assignment = ShiftAssignment.builder()
+                .id(1L).shift(shift).employee(employee).assignedBy(managerUser)
+                .overrideApplied(false).build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(managerUser));
+        when(shiftRepository.findById(50L)).thenReturn(Optional.of(shift));
+        when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(manager));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(100L)).thenReturn(List.of(10L));
+        when(shiftAssignmentRepository.findByShiftId(50L)).thenReturn(List.of(assignment));
+        when(shiftRepository.save(any(Shift.class))).thenReturn(shift);
+
+        UpdateShiftRequest request = new UpdateShiftRequest(
+                null, LocalTime.of(8, 0), LocalTime.of(16, 0), null, null
+        );
+
+        ShiftResponse response = shiftService.updateShift(1L, 50L, request);
+
+        assertThat(shift.getStartTime()).isEqualTo(LocalTime.of(8, 0));
+        assertThat(shift.getEndTime()).isEqualTo(LocalTime.of(16, 0));
+        assertThat(response).isNotNull();
+        verify(notificationService).notifyUser(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void updateShift_CancelledShift_ThrowsInvalidState() {
+        shift.setStatus(ShiftStatus.CANCELLED);
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(managerUser));
+        when(shiftRepository.findById(50L)).thenReturn(Optional.of(shift));
+
+        UpdateShiftRequest request = new UpdateShiftRequest(null, null, null, null, null);
+
+        assertThatThrownBy(() -> shiftService.updateShift(1L, 50L, request))
+                .isInstanceOf(InvalidStateException.class)
+                .hasMessage("Cannot update a cancelled shift");
+    }
+
+    @Test
+    void updateShift_TimeOrderViolation_ThrowsBadRequest() {
+        when(userRepository.findById(2L)).thenReturn(Optional.of(hrAdminUser));
+        when(shiftRepository.findById(50L)).thenReturn(Optional.of(shift));
+
+        UpdateShiftRequest request = new UpdateShiftRequest(
+                null, LocalTime.of(17, 0), LocalTime.of(9, 0), null, null
+        );
+
+        assertThatThrownBy(() -> shiftService.updateShift(2L, 50L, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("End time must be after start time");
+    }
+
+    @Test
+    void updateShift_ManagerNotAtLocation_ThrowsAccessDenied() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(managerUser));
+        when(shiftRepository.findById(50L)).thenReturn(Optional.of(shift));
+        when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(manager));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(100L)).thenReturn(List.of(99L));
+
+        UpdateShiftRequest request = new UpdateShiftRequest(null, null, null, "Java", null);
+
+        assertThatThrownBy(() -> shiftService.updateShift(1L, 50L, request))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void updateShift_ShiftNotFound_ThrowsNotFound() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(managerUser));
+        when(shiftRepository.findById(99L)).thenReturn(Optional.empty());
+
+        UpdateShiftRequest request = new UpdateShiftRequest(null, null, null, null, null);
+
+        assertThatThrownBy(() -> shiftService.updateShift(1L, 99L, request))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessage("Shift not found");
     }
 }

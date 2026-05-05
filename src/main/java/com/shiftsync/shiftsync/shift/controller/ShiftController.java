@@ -4,6 +4,7 @@ import com.shiftsync.shiftsync.common.response.ErrorResponse;
 import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.shift.dto.CreateShiftRequest;
 import com.shiftsync.shiftsync.shift.dto.ShiftResponse;
+import com.shiftsync.shiftsync.shift.dto.UpdateShiftRequest;
 import com.shiftsync.shiftsync.shift.service.ShiftService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -58,6 +59,29 @@ public class ShiftController {
                         .buildAndExpand(response.id())
                         .toUri())
                 .body(response);
+    }
+
+    @PatchMapping("/{shiftId}")
+    @PreAuthorize("hasAnyRole('MANAGER', 'HR_ADMIN')")
+    @Operation(
+            summary = "Update a shift",
+            description = "Partially updates an open shift. All fields are optional — only provided fields are applied. Notifies all assigned employees asynchronously. Cannot update a cancelled shift."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Shift updated", content = @Content(schema = @Schema(implementation = ShiftResponse.class))),
+            @ApiResponse(responseCode = "400", description = "End time not after start time", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Manager not assigned to the location", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Shift not found", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "409", description = "Shift is cancelled", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<ShiftResponse> updateShift(
+            Authentication authentication,
+            @PathVariable Long shiftId,
+            @Valid @RequestBody UpdateShiftRequest request
+    ) {
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
+        return ResponseEntity.ok(shiftService.updateShift(actorUserId, shiftId, request));
     }
 
     @PatchMapping("/{shiftId}/cancel")

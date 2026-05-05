@@ -156,6 +156,74 @@ class ShiftControllerWebMvcTest {
                 .andExpect(status().isForbidden());
     }
 
+    private static final String UPDATE_BODY = """
+            {
+              "startTime": "08:00:00",
+              "endTime": "16:00:00"
+            }
+            """;
+
+    @Test
+    void updateShift_WithoutToken_ReturnsUnauthorized() throws Exception {
+        mockMvc.perform(patch("/api/v1/shifts/50")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(UPDATE_BODY))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "EMPLOYEE")
+    void updateShift_WrongRole_ReturnsForbidden() throws Exception {
+        mockMvc.perform(patch("/api/v1/shifts/50")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(UPDATE_BODY))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "MANAGER")
+    void updateShift_ValidRequest_ReturnsOk() throws Exception {
+        ShiftResponse response = new ShiftResponse(
+                50L, 10L, "HQ", 20L, "Engineering",
+                LocalDate.of(2026, 6, 1),
+                LocalTime.of(8, 0), LocalTime.of(16, 0),
+                null, 2, "OPEN", 0
+        );
+        when(shiftService.updateShift(anyLong(), eq(50L), any())).thenReturn(response);
+
+        mockMvc.perform(patch("/api/v1/shifts/50")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(UPDATE_BODY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(50))
+                .andExpect(jsonPath("$.startTime").value("08:00:00"));
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "MANAGER")
+    void updateShift_CancelledShift_ReturnsConflict() throws Exception {
+        doThrow(new InvalidStateException("Cannot update a cancelled shift"))
+                .when(shiftService).updateShift(anyLong(), eq(50L), any());
+
+        mockMvc.perform(patch("/api/v1/shifts/50")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(UPDATE_BODY))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Cannot update a cancelled shift"));
+    }
+
+    @Test
+    @WithMockUser(username = "1", roles = "MANAGER")
+    void updateShift_NotFound_ReturnsNotFound() throws Exception {
+        doThrow(new ResourceNotFoundException("Shift not found"))
+                .when(shiftService).updateShift(anyLong(), eq(99L), any());
+
+        mockMvc.perform(patch("/api/v1/shifts/99")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(UPDATE_BODY))
+                .andExpect(status().isNotFound());
+    }
+
     @Test
     @WithMockUser(username = "1", roles = "MANAGER")
     void getLocationShifts_ValidRequest_ReturnsOk() throws Exception {
