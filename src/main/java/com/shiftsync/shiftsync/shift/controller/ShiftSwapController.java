@@ -5,6 +5,7 @@ import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.shift.dto.RejectSwapRequest;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapRequest;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapResponse;
+import com.shiftsync.shiftsync.shift.entity.ShiftSwapStatus;
 import com.shiftsync.shiftsync.shift.service.ShiftSwapService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -18,12 +19,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/shift-swaps")
@@ -33,6 +38,26 @@ public class ShiftSwapController {
 
     private final ShiftSwapService shiftSwapService;
     private final AuthenticationHelper authenticationHelper;
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER', 'HR_ADMIN')")
+    @Operation(
+            summary = "Retrieve shift swap requests",
+            description = "Employees see their own swaps (as requester or target), optionally filtered by status. Managers see pending swaps for their location. HR Admins see all pending swaps."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Swaps returned", content = @Content(schema = @Schema(implementation = ShiftSwapResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "User or employee profile not found", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<List<ShiftSwapResponse>> getMySwaps(
+            Authentication authentication,
+            @RequestParam(required = false) ShiftSwapStatus status
+    ) {
+        Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
+        return ResponseEntity.ok(shiftSwapService.getMySwaps(actorUserId, status));
+    }
 
     @PostMapping
     @PreAuthorize("hasRole('EMPLOYEE')")
