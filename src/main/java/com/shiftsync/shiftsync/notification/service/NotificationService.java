@@ -9,7 +9,7 @@ public interface NotificationService {
 
     void notifyUser(Long userId, NotificationType type, String message, String entityType, Long entityId);
 
-    Page<NotificationResponse> getInbox(Long actorUserId, boolean unreadOnly, int page, int size);
+    Page<NotificationResponse> getInbox(Long actorUserId, Boolean read, int page, int size);
 
     void markAsRead(Long actorUserId, Long notificationId);
 

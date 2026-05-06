@@ -1,11 +1,11 @@
 package com.shiftsync.shiftsync.notification.service;
 
 import com.shiftsync.shiftsync.common.enums.NotificationType;
-import com.shiftsync.shiftsync.common.exception.BadRequestException;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
 import com.shiftsync.shiftsync.notification.dto.NotificationResponse;
 import com.shiftsync.shiftsync.notification.dto.UnreadCountResponse;
 import com.shiftsync.shiftsync.notification.entity.Notification;
+import com.shiftsync.shiftsync.notification.entity.NotificationEvent;
 import com.shiftsync.shiftsync.notification.repository.NotificationRepository;
 import com.shiftsync.shiftsync.notification.service.impl.NotificationServiceImpl;
 import org.junit.jupiter.api.Test;
@@ -14,8 +14,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,12 +36,31 @@ class NotificationServiceImplTest {
     @Mock
     private NotificationRepository notificationRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private NotificationServiceImpl notificationService;
 
     @Test
-    void notifyUser_SavesNotificationWithCorrectFields() {
+    void notifyUser_PublishesNotificationEvent() {
         notificationService.notifyUser(1L, NotificationType.SHIFT_ASSIGNED, "You have been assigned", "SHIFT", 10L);
+
+        ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        NotificationEvent event = captor.getValue();
+        assertThat(event.userId()).isEqualTo(1L);
+        assertThat(event.type()).isEqualTo(NotificationType.SHIFT_ASSIGNED);
+        assertThat(event.message()).isEqualTo("You have been assigned");
+        assertThat(event.entityType()).isEqualTo("SHIFT");
+        assertThat(event.entityId()).isEqualTo(10L);
+    }
+
+    @Test
+    void onNotificationEvent_SavesNotificationWithCorrectFields() {
+        NotificationEvent event = new NotificationEvent(1L, NotificationType.SHIFT_ASSIGNED, "You have been assigned", "SHIFT", 10L);
+
+        notificationService.onNotificationEvent(event);
 
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository).save(captor.capture());
@@ -52,12 +73,12 @@ class NotificationServiceImplTest {
     }
 
     @Test
-    void getInbox_UnreadOnlyFalse_ReturnsAllNotifications() {
+    void getInbox_ReadNull_ReturnsAllNotifications() {
         Notification n = buildNotification(1L, 100L, false);
         when(notificationRepository.findByUserIdOrderByCreatedAtDesc(eq(100L), any()))
                 .thenReturn(new PageImpl<>(List.of(n)));
 
-        Page<NotificationResponse> result = notificationService.getInbox(100L, false, 0, 20);
+        Page<NotificationResponse> result = notificationService.getInbox(100L, null, 0, 20);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().getFirst().id()).isEqualTo(1L);
@@ -65,12 +86,12 @@ class NotificationServiceImplTest {
     }
 
     @Test
-    void getInbox_UnreadOnlyTrue_QueriesUnreadRepository() {
+    void getInbox_ReadFalse_QueriesUnreadRepository() {
         Notification n = buildNotification(2L, 100L, false);
         when(notificationRepository.findByUserIdAndReadFalseOrderByCreatedAtDesc(eq(100L), any()))
                 .thenReturn(new PageImpl<>(List.of(n)));
 
-        Page<NotificationResponse> result = notificationService.getInbox(100L, true, 0, 20);
+        Page<NotificationResponse> result = notificationService.getInbox(100L, Boolean.FALSE, 0, 20);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().getFirst().id()).isEqualTo(2L);
@@ -109,12 +130,12 @@ class NotificationServiceImplTest {
     }
 
     @Test
-    void markAsRead_NotOwner_ThrowsBadRequest() {
+    void markAsRead_NotOwner_ThrowsForbidden() {
         Notification n = buildNotification(5L, 200L, false);
         when(notificationRepository.findById(5L)).thenReturn(Optional.of(n));
 
         assertThatThrownBy(() -> notificationService.markAsRead(100L, 5L))
-                .isInstanceOf(BadRequestException.class)
+                .isInstanceOf(AccessDeniedException.class)
                 .hasMessage("Notification does not belong to the current user");
     }
 

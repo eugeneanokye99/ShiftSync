@@ -34,7 +34,7 @@ public class NotificationController {
     @GetMapping
     @Operation(
             summary = "Get notification inbox",
-            description = "Returns paginated notifications for the authenticated user. Pass unreadOnly=true to filter unread only."
+            description = "Returns paginated notifications for the authenticated user. Pass ?read=false to filter unread notifications only."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Notifications returned"),
@@ -42,12 +42,12 @@ public class NotificationController {
     })
     public ResponseEntity<Page<NotificationResponse>> getInbox(
             Authentication authentication,
-            @RequestParam(defaultValue = "false") boolean unreadOnly,
+            @RequestParam(required = false) Boolean read,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
-        return ResponseEntity.ok(notificationService.getInbox(actorUserId, unreadOnly, page, size));
+        return ResponseEntity.ok(notificationService.getInbox(actorUserId, read, page, size));
     }
 
     @GetMapping("/unread-count")
@@ -65,8 +65,8 @@ public class NotificationController {
     @Operation(summary = "Mark a notification as read")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Marked as read"),
-            @ApiResponse(responseCode = "400", description = "Notification belongs to another user", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Notification belongs to another user", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "Notification not found", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     public ResponseEntity<Void> markAsRead(
