@@ -25,12 +25,12 @@ import com.shiftsync.shiftsync.shift.repository.ShiftSwapRepository;
 import com.shiftsync.shiftsync.shift.service.ShiftSwapService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -120,11 +120,9 @@ public class ShiftSwapServiceImpl implements ShiftSwapService {
         Employee targetEmployee = swap.getTargetEmployee();
         Shift requesterShift = requesterAssignment.getShift();
 
-        List<Long> excludedShiftIds = new ArrayList<>();
-        excludedShiftIds.add(requesterShift.getId());
-        if (targetAssignment != null) {
-            excludedShiftIds.add(targetAssignment.getShift().getId());
-        }
+        List<Long> excludedShiftIds = targetAssignment != null
+                ? List.of(requesterShift.getId(), targetAssignment.getShift().getId())
+                : List.of(requesterShift.getId());
 
         checkConflictsForApproval(targetEmployee, requesterShift, excludedShiftIds);
 
@@ -216,27 +214,24 @@ public class ShiftSwapServiceImpl implements ShiftSwapService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ShiftSwapResponse> getMySwaps(Long actorUserId, ShiftSwapStatus status) {
+    public Page<ShiftSwapResponse> getMySwaps(Long actorUserId, ShiftSwapStatus status, Pageable pageable) {
         User actor = userRepository.findById(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         if (actor.getRole() == UserRole.HR_ADMIN) {
-            return shiftSwapRepository.findAllPending()
-                    .stream().map(this::toResponse).collect(Collectors.toList());
+            return shiftSwapRepository.findAllPending(pageable).map(this::toResponse);
         }
 
         if (actor.getRole() == UserRole.MANAGER) {
             Employee manager = employeeRepository.findByUserId(actorUserId)
                     .orElseThrow(() -> new ResourceNotFoundException("Manager profile not found"));
             List<Long> locationIds = managerLocationRepository.findLocationIdsByManagerEmployeeId(manager.getId());
-            return shiftSwapRepository.findPendingByLocationIds(locationIds)
-                    .stream().map(this::toResponse).collect(Collectors.toList());
+            return shiftSwapRepository.findPendingByLocationIds(locationIds, pageable).map(this::toResponse);
         }
 
         Employee employee = employeeRepository.findByUserId(actorUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found"));
-        return shiftSwapRepository.findByParticipant(employee.getId(), status)
-                .stream().map(this::toResponse).collect(Collectors.toList());
+        return shiftSwapRepository.findByParticipant(employee.getId(), status, pageable).map(this::toResponse);
     }
 
     private void checkConflictsForApproval(Employee employee, Shift newShift, List<Long> excludedShiftIds) {

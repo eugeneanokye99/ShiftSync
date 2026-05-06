@@ -3,8 +3,8 @@ package com.shiftsync.shiftsync.shift.service;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapRequest;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapResponse;
 import com.shiftsync.shiftsync.shift.entity.ShiftSwapStatus;
-
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 /**
  * The interface Shift swap service.
@@ -44,5 +44,5 @@ public interface ShiftSwapService {
      * @param status      the status
      * @return the my swaps
      */
-    List<ShiftSwapResponse> getMySwaps(Long actorUserId, ShiftSwapStatus status);
+    Page<ShiftSwapResponse> getMySwaps(Long actorUserId, ShiftSwapStatus status, Pageable pageable);
 }

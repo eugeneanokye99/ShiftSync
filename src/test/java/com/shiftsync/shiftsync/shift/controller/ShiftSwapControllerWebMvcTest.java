@@ -26,6 +26,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -209,13 +212,14 @@ class ShiftSwapControllerWebMvcTest {
                 200L, "Bob", null, null, null,
                 "PENDING_MANAGER_APPROVAL", null, null, LocalDateTime.now()
         );
-        when(shiftSwapService.getMySwaps(anyLong(), isNull())).thenReturn(List.of(response));
+        when(shiftSwapService.getMySwaps(anyLong(), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(response)));
 
         mockMvc.perform(get("/api/v1/shift-swaps"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(10))
-                .andExpect(jsonPath("$[0].requesterName").value("Alice"))
-                .andExpect(jsonPath("$[0].status").value("PENDING_MANAGER_APPROVAL"));
+                .andExpect(jsonPath("$.content[0].id").value(10))
+                .andExpect(jsonPath("$.content[0].requesterName").value("Alice"))
+                .andExpect(jsonPath("$.content[0].status").value("PENDING_MANAGER_APPROVAL"));
     }
 
     @Test
@@ -227,19 +231,32 @@ class ShiftSwapControllerWebMvcTest {
                 200L, "Bob", null, null, null,
                 "APPROVED", null, null, LocalDateTime.now()
         );
-        when(shiftSwapService.getMySwaps(anyLong(), eq(ShiftSwapStatus.APPROVED))).thenReturn(List.of(response));
+        when(shiftSwapService.getMySwaps(anyLong(), eq(ShiftSwapStatus.APPROVED), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(response)));
 
         mockMvc.perform(get("/api/v1/shift-swaps").param("status", "APPROVED"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].status").value("APPROVED"));
+                .andExpect(jsonPath("$.content[0].status").value("APPROVED"));
     }
 
     @Test
     @WithMockUser(username = "3", roles = "MANAGER")
     void getMySwaps_AsManager_ReturnsOk() throws Exception {
-        when(shiftSwapService.getMySwaps(anyLong(), isNull())).thenReturn(List.of());
+        when(shiftSwapService.getMySwaps(anyLong(), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/shift-swaps"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(username = "4", roles = "HR_ADMIN")
+    void getMySwaps_AsHrAdmin_ReturnsOk() throws Exception {
+        when(shiftSwapService.getMySwaps(anyLong(), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/shift-swaps"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
     }
 }

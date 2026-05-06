@@ -15,6 +15,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,8 +30,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/shift-swaps")
@@ -43,7 +44,10 @@ public class ShiftSwapController {
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'MANAGER', 'HR_ADMIN')")
     @Operation(
             summary = "Retrieve shift swap requests",
-            description = "Employees see their own swaps (as requester or target), optionally filtered by status. Managers see pending swaps for their location. HR Admins see all pending swaps."
+            description = "Returns a paginated list of shift swap requests scoped to the caller's role. " +
+                    "EMPLOYEE: their own swaps as requester or target (status filter honoured). " +
+                    "MANAGER: pending swaps for their assigned location(s) (status filter ignored). " +
+                    "HR_ADMIN: all pending swaps system-wide (status filter ignored)."
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Swaps returned", content = @Content(schema = @Schema(implementation = ShiftSwapResponse.class))),
@@ -51,12 +55,13 @@ public class ShiftSwapController {
             @ApiResponse(responseCode = "403", description = "Forbidden", content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "404", description = "User or employee profile not found", content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
-    public ResponseEntity<List<ShiftSwapResponse>> getMySwaps(
+    public ResponseEntity<Page<ShiftSwapResponse>> getMySwaps(
             Authentication authentication,
-            @RequestParam(required = false) ShiftSwapStatus status
+            @RequestParam(required = false) ShiftSwapStatus status,
+            @PageableDefault(size = 20, sort = "createdAt") Pageable pageable
     ) {
         Long actorUserId = authenticationHelper.getCurrentUserId(authentication);
-        return ResponseEntity.ok(shiftSwapService.getMySwaps(actorUserId, status));
+        return ResponseEntity.ok(shiftSwapService.getMySwaps(actorUserId, status, pageable));
     }
 
     @PostMapping
