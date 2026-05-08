@@ -1,9 +1,11 @@
 package com.shiftsync.shiftsync.report.exporter;
 
 import com.shiftsync.shiftsync.report.dto.CoverageReportEntry;
+import com.shiftsync.shiftsync.report.dto.OvertimeReportEntry;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class CsvExporter {
@@ -21,6 +23,23 @@ public class CsvExporter {
                     .append(entry.assignedCount()).append(",")
                     .append(entry.staffingStatus()).append(",")
                     .append(escapeCsv(String.join("; ", entry.employeeNames()))).append("\n");
+        }
+        return sb.toString();
+    }
+
+    public String toOvertimeCsv(List<OvertimeReportEntry> entries) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Employee ID,Employee Name,Contracted Weekly Hours,Actual Hours In Period,Overtime Hours,Contributing Shifts\n");
+        for (OvertimeReportEntry entry : entries) {
+            String shiftSummary = entry.contributingShifts().stream()
+                    .map(s -> s.date() + " " + s.startTime() + "-" + s.endTime() + " @ " + s.locationName())
+                    .collect(Collectors.joining(" | "));
+            sb.append(entry.employeeId()).append(",")
+                    .append(escapeCsv(entry.employeeName())).append(",")
+                    .append(entry.contractedWeeklyHours()).append(",")
+                    .append(entry.actualHoursInPeriod()).append(",")
+                    .append(entry.overtimeHours()).append(",")
+                    .append(escapeCsv(shiftSummary)).append("\n");
         }
         return sb.toString();
     }
