@@ -2,6 +2,7 @@ package com.shiftsync.shiftsync.report.service;
 
 import com.shiftsync.shiftsync.report.dto.CoverageReportEntry;
 import com.shiftsync.shiftsync.report.dto.CoverageReportPageResponse;
+import com.shiftsync.shiftsync.report.dto.LeaveUtilizationReportResponse;
 import com.shiftsync.shiftsync.report.dto.OvertimeReportEntry;
 import com.shiftsync.shiftsync.report.dto.OvertimeReportPageResponse;
 
@@ -29,4 +30,14 @@ public interface ReportService {
      * Returns all overtime entries for a pay period (used for CSV export).
      */
     List<OvertimeReportEntry> getAllOvertimeEntries(Long locationId, LocalDate from, LocalDate to);
+
+    /**
+     * Returns a paginated leave utilization report with department-level aggregates.
+     */
+    LeaveUtilizationReportResponse getLeaveReport(Long locationId, LocalDate from, LocalDate to, int page, int size);
+
+    /**
+     * Returns all leave data unpaginated (used for CSV export).
+     */
+    LeaveUtilizationReportResponse getAllLeaveData(Long locationId, LocalDate from, LocalDate to);
 }

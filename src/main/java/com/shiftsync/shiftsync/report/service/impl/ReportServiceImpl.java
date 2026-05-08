@@ -1,7 +1,14 @@
 package com.shiftsync.shiftsync.report.service.impl;
 
+import com.shiftsync.shiftsync.common.enums.LeaveStatus;
+import com.shiftsync.shiftsync.common.enums.LeaveType;
+import com.shiftsync.shiftsync.leave.entity.LeaveRequest;
+import com.shiftsync.shiftsync.leave.repository.LeaveRequestRepository;
 import com.shiftsync.shiftsync.report.dto.CoverageReportEntry;
 import com.shiftsync.shiftsync.report.dto.CoverageReportPageResponse;
+import com.shiftsync.shiftsync.report.dto.DepartmentLeaveAggregate;
+import com.shiftsync.shiftsync.report.dto.LeaveEmployeeEntry;
+import com.shiftsync.shiftsync.report.dto.LeaveUtilizationReportResponse;
 import com.shiftsync.shiftsync.report.dto.OvertimeReportEntry;
 import com.shiftsync.shiftsync.report.dto.OvertimeReportPageResponse;
 import com.shiftsync.shiftsync.report.dto.OvertimeShiftEntry;
@@ -34,6 +41,7 @@ public class ReportServiceImpl implements ReportService {
 
     private final ShiftRepository shiftRepository;
     private final ShiftAssignmentRepository shiftAssignmentRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -176,6 +184,81 @@ public class ReportServiceImpl implements ReportService {
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(OvertimeReportEntry::overtimeHours).reversed())
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public LeaveUtilizationReportResponse getLeaveReport(Long locationId, LocalDate from, LocalDate to, int page, int size) {
+        LeaveUtilizationReportResponse full = fetchLeaveData(locationId, from, to);
+        List<LeaveEmployeeEntry> all = full.employees();
+        int totalElements = all.size();
+        int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
+        int start = page * size;
+        List<LeaveEmployeeEntry> content = start >= totalElements
+                ? List.of()
+                : all.subList(start, Math.min(start + size, totalElements));
+        return new LeaveUtilizationReportResponse(content, totalElements, totalPages, page, full.departmentAggregates());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public LeaveUtilizationReportResponse getAllLeaveData(Long locationId, LocalDate from, LocalDate to) {
+        return fetchLeaveData(locationId, from, to);
+    }
+
+    private LeaveUtilizationReportResponse fetchLeaveData(Long locationId, LocalDate from, LocalDate to) {
+        List<LeaveRequest> leaveRequests = leaveRequestRepository
+                .findByStatusInRangeByOptionalLocation(from, to, LeaveStatus.APPROVED, locationId);
+
+        List<LeaveEmployeeEntry> employees = leaveRequests.stream()
+                .collect(Collectors.groupingBy(lr -> lr.getEmployee().getId()))
+                .values()
+                .stream()
+                .map(employeeLeaves -> {
+                    LeaveRequest first = employeeLeaves.getFirst();
+                    Map<LeaveType, Long> daysByType = employeeLeaves.stream()
+                            .collect(Collectors.toMap(
+                                    LeaveRequest::getLeaveType,
+                                    lr -> calculateDaysInPeriod(lr, from, to),
+                                    Long::sum
+                            ));
+                    long annual = daysByType.getOrDefault(LeaveType.ANNUAL, 0L);
+                    long sick = daysByType.getOrDefault(LeaveType.SICK, 0L);
+                    long unpaid = daysByType.getOrDefault(LeaveType.UNPAID, 0L);
+                    return new LeaveEmployeeEntry(
+                            first.getEmployee().getId(),
+                            first.getEmployee().getUser().getFullName(),
+                            first.getEmployee().getDepartment().getName(),
+                            annual,
+                            sick,
+                            unpaid,
+                            annual + sick + unpaid
+                    );
+                })
+                .sorted(Comparator.comparing(LeaveEmployeeEntry::employeeName))
+                .toList();
+
+        List<DepartmentLeaveAggregate> aggregates = employees.stream()
+                .collect(Collectors.groupingBy(LeaveEmployeeEntry::departmentName))
+                .entrySet()
+                .stream()
+                .map(e -> new DepartmentLeaveAggregate(
+                        e.getKey(),
+                        e.getValue().stream().mapToLong(LeaveEmployeeEntry::annualDaysTaken).sum(),
+                        e.getValue().stream().mapToLong(LeaveEmployeeEntry::sickDaysTaken).sum(),
+                        e.getValue().stream().mapToLong(LeaveEmployeeEntry::unpaidDaysTaken).sum(),
+                        e.getValue().stream().mapToLong(LeaveEmployeeEntry::totalDaysTaken).sum()
+                ))
+                .sorted(Comparator.comparing(DepartmentLeaveAggregate::departmentName))
+                .toList();
+
+        return new LeaveUtilizationReportResponse(employees, employees.size(), 1, 0, aggregates);
+    }
+
+    private long calculateDaysInPeriod(LeaveRequest lr, LocalDate from, LocalDate to) {
+        LocalDate effectiveStart = lr.getStartDate().isBefore(from) ? from : lr.getStartDate();
+        LocalDate effectiveEnd = lr.getEndDate().isAfter(to) ? to : lr.getEndDate();
+        return ChronoUnit.DAYS.between(effectiveStart, effectiveEnd) + 1;
     }
 
     private StaffingStatus resolveStaffingStatus(int assignedCount, int minimumHeadcount) {
