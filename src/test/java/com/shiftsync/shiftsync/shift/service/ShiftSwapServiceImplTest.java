@@ -12,6 +12,7 @@ import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.leave.repository.LeaveRequestRepository;
 import com.shiftsync.shiftsync.location.entity.Location;
+import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
 import com.shiftsync.shiftsync.notification.service.NotificationService;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapRequest;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapResponse;
@@ -36,10 +37,15 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -54,6 +60,7 @@ class ShiftSwapServiceImplTest {
     @Mock private ShiftSwapRepository shiftSwapRepository;
     @Mock private LeaveRequestRepository leaveRequestRepository;
     @Mock private NotificationService notificationService;
+    @Mock private ManagerLocationRepository managerLocationRepository;
 
     @InjectMocks
     private ShiftSwapServiceImpl shiftSwapService;
@@ -284,5 +291,89 @@ class ShiftSwapServiceImplTest {
         assertThatThrownBy(() -> shiftSwapService.rejectSwap(3L, 10L, null))
                 .isInstanceOf(InvalidStateException.class)
                 .hasMessage("Swap request is not pending approval");
+    }
+
+    @Test
+    void getMySwaps_Employee_NoStatusFilter_ReturnsAllParticipantSwaps() {
+        User employeeUser = requester.getUser();
+        ShiftSwap swap = ShiftSwap.builder()
+                .id(10L).requester(requester).requesterAssignment(requesterAssignment)
+                .targetEmployee(targetEmployee).targetAssignment(targetAssignment)
+                .status(ShiftSwapStatus.PENDING_MANAGER_APPROVAL).build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(employeeUser));
+        when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(requester));
+        when(shiftSwapRepository.findByParticipant(eq(100L), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(swap)));
+
+        Page<ShiftSwapResponse> result = shiftSwapService.getMySwaps(1L, null, Pageable.unpaged());
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent().get(0).id()).isEqualTo(10L);
+        assertThat(result.getContent().get(0).requesterName()).isEqualTo("Alice");
+        assertThat(result.getContent().get(0).status()).isEqualTo("PENDING_MANAGER_APPROVAL");
+    }
+
+    @Test
+    void getMySwaps_Employee_WithStatusFilter_ReturnsFilteredSwaps() {
+        User employeeUser = requester.getUser();
+        ShiftSwap approved = ShiftSwap.builder()
+                .id(11L).requester(requester).requesterAssignment(requesterAssignment)
+                .targetEmployee(targetEmployee).targetAssignment(targetAssignment)
+                .status(ShiftSwapStatus.APPROVED).build();
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(employeeUser));
+        when(employeeRepository.findByUserId(1L)).thenReturn(Optional.of(requester));
+        when(shiftSwapRepository.findByParticipant(eq(100L), eq(ShiftSwapStatus.APPROVED), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(approved)));
+
+        Page<ShiftSwapResponse> result = shiftSwapService.getMySwaps(1L, ShiftSwapStatus.APPROVED, Pageable.unpaged());
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent().get(0).status()).isEqualTo("APPROVED");
+    }
+
+    @Test
+    void getMySwaps_Manager_ReturnsPendingSwapsForLocation() {
+        ShiftSwap swap = ShiftSwap.builder()
+                .id(10L).requester(requester).requesterAssignment(requesterAssignment)
+                .targetEmployee(targetEmployee).targetAssignment(targetAssignment)
+                .status(ShiftSwapStatus.PENDING_MANAGER_APPROVAL).build();
+
+        Employee managerEmployee = Employee.builder()
+                .id(300L).user(managerUser)
+                .employmentType(EmploymentType.FULL_TIME)
+                .contractedWeeklyHours(new BigDecimal("40.00"))
+                .hireDate(LocalDate.of(2025, 1, 1))
+                .active(true).notificationEnabled(true).build();
+
+        when(userRepository.findById(3L)).thenReturn(Optional.of(managerUser));
+        when(employeeRepository.findByUserId(3L)).thenReturn(Optional.of(managerEmployee));
+        when(managerLocationRepository.findLocationIdsByManagerEmployeeId(300L)).thenReturn(List.of(10L));
+        when(shiftSwapRepository.findPendingByLocationIds(eq(List.of(10L)), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(swap)));
+
+        Page<ShiftSwapResponse> result = shiftSwapService.getMySwaps(3L, null, Pageable.unpaged());
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent().get(0).status()).isEqualTo("PENDING_MANAGER_APPROVAL");
+    }
+
+    @Test
+    void getMySwaps_HrAdmin_ReturnsAllPendingSwaps() {
+        User hrAdminUser = User.builder().id(4L).fullName("HR Admin").role(UserRole.HR_ADMIN).build();
+        ShiftSwap swap = ShiftSwap.builder()
+                .id(10L).requester(requester).requesterAssignment(requesterAssignment)
+                .targetEmployee(targetEmployee).targetAssignment(targetAssignment)
+                .status(ShiftSwapStatus.PENDING_MANAGER_APPROVAL).build();
+
+        when(userRepository.findById(4L)).thenReturn(Optional.of(hrAdminUser));
+        when(shiftSwapRepository.findAllPending(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(swap)));
+
+        Page<ShiftSwapResponse> result = shiftSwapService.getMySwaps(4L, null, Pageable.unpaged());
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent().get(0).id()).isEqualTo(10L);
     }
 }

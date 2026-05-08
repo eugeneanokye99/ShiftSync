@@ -6,27 +6,30 @@ import com.shiftsync.shiftsync.common.enums.LeaveStatus;
 import com.shiftsync.shiftsync.common.enums.NotificationType;
 import com.shiftsync.shiftsync.common.exception.BadRequestException;
 import com.shiftsync.shiftsync.common.exception.InvalidStateException;
+import com.shiftsync.shiftsync.common.enums.UserRole;
 import com.shiftsync.shiftsync.common.exception.ResourceNotFoundException;
 import com.shiftsync.shiftsync.config.CacheConfig;
 import com.shiftsync.shiftsync.employee.entity.Employee;
 import com.shiftsync.shiftsync.employee.repository.EmployeeRepository;
 import com.shiftsync.shiftsync.leave.repository.LeaveRequestRepository;
+import com.shiftsync.shiftsync.location.repository.ManagerLocationRepository;
 import com.shiftsync.shiftsync.notification.service.NotificationService;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapRequest;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapResponse;
+import com.shiftsync.shiftsync.shift.entity.ShiftSwapStatus;
 import com.shiftsync.shiftsync.shift.entity.Shift;
 import com.shiftsync.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shiftsync.shift.entity.ShiftSwap;
-import com.shiftsync.shiftsync.shift.entity.ShiftSwapStatus;
 import com.shiftsync.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shiftsync.shift.repository.ShiftSwapRepository;
 import com.shiftsync.shiftsync.shift.service.ShiftSwapService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -39,6 +42,7 @@ public class ShiftSwapServiceImpl implements ShiftSwapService {
     private final ShiftSwapRepository shiftSwapRepository;
     private final LeaveRequestRepository leaveRequestRepository;
     private final NotificationService notificationService;
+    private final ManagerLocationRepository managerLocationRepository;
 
     @Override
     @Transactional
@@ -116,11 +120,9 @@ public class ShiftSwapServiceImpl implements ShiftSwapService {
         Employee targetEmployee = swap.getTargetEmployee();
         Shift requesterShift = requesterAssignment.getShift();
 
-        List<Long> excludedShiftIds = new ArrayList<>();
-        excludedShiftIds.add(requesterShift.getId());
-        if (targetAssignment != null) {
-            excludedShiftIds.add(targetAssignment.getShift().getId());
-        }
+        List<Long> excludedShiftIds = targetAssignment != null
+                ? List.of(requesterShift.getId(), targetAssignment.getShift().getId())
+                : List.of(requesterShift.getId());
 
         checkConflictsForApproval(targetEmployee, requesterShift, excludedShiftIds);
 
@@ -208,6 +210,28 @@ public class ShiftSwapServiceImpl implements ShiftSwapService {
                 "SHIFT_SWAP",
                 swapId
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ShiftSwapResponse> getMySwaps(Long actorUserId, ShiftSwapStatus status, Pageable pageable) {
+        User actor = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (actor.getRole() == UserRole.HR_ADMIN) {
+            return shiftSwapRepository.findAllPending(pageable).map(this::toResponse);
+        }
+
+        if (actor.getRole() == UserRole.MANAGER) {
+            Employee manager = employeeRepository.findByUserId(actorUserId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Manager profile not found"));
+            List<Long> locationIds = managerLocationRepository.findLocationIdsByManagerEmployeeId(manager.getId());
+            return shiftSwapRepository.findPendingByLocationIds(locationIds, pageable).map(this::toResponse);
+        }
+
+        Employee employee = employeeRepository.findByUserId(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee profile not found"));
+        return shiftSwapRepository.findByParticipant(employee.getId(), status, pageable).map(this::toResponse);
     }
 
     private void checkConflictsForApproval(Employee employee, Shift newShift, List<Long> excludedShiftIds) {
