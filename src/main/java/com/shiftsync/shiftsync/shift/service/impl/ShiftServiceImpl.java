@@ -22,6 +22,7 @@ import com.shiftsync.shiftsync.shift.dto.EmployeeShiftResponse;
 import com.shiftsync.shiftsync.shift.dto.LocationShiftPageResponse;
 import com.shiftsync.shiftsync.shift.dto.LocationShiftResponse;
 import com.shiftsync.shiftsync.shift.dto.ShiftResponse;
+import com.shiftsync.shiftsync.shift.dto.UpdateShiftRequest;
 import com.shiftsync.shiftsync.shift.entity.Shift;
 import com.shiftsync.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shiftsync.shift.entity.ShiftStatus;
@@ -100,6 +101,60 @@ public class ShiftServiceImpl implements ShiftService {
         Shift saved = shiftRepository.save(shift);
 
         return toResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = CacheConfig.LOCATION_SHIFTS, allEntries = true)
+    public ShiftResponse updateShift(Long actorUserId, Long shiftId, UpdateShiftRequest request) {
+        User actor = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Shift shift = shiftRepository.findById(shiftId)
+                .orElseThrow(() -> new ResourceNotFoundException("Shift not found"));
+
+        if (shift.getStatus() == ShiftStatus.CANCELLED) {
+            throw new InvalidStateException("Cannot update a cancelled shift");
+        }
+
+        if (actor.getRole() == UserRole.MANAGER) {
+            Employee managerEmployee = employeeRepository.findByUserId(actorUserId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Manager profile not found"));
+            List<Long> assignedLocations = managerLocationRepository.findLocationIdsByManagerEmployeeId(managerEmployee.getId());
+            if (!assignedLocations.contains(shift.getLocation().getId())) {
+                throw new AccessDeniedException("You are not assigned to this location");
+            }
+        }
+
+        if (request.date() != null) shift.setShiftDate(request.date());
+        if (request.startTime() != null) shift.setStartTime(request.startTime());
+        if (request.endTime() != null) shift.setEndTime(request.endTime());
+        if (request.requiredSkill() != null) shift.setRequiredSkill(request.requiredSkill());
+        if (request.minimumHeadcount() != null) shift.setMinimumHeadcount(request.minimumHeadcount());
+
+        if (!shift.getEndTime().isAfter(shift.getStartTime())) {
+            throw new BadRequestException("End time must be after start time");
+        }
+
+        shiftRepository.save(shift);
+
+        List<ShiftAssignment> assignments = shiftAssignmentRepository.findByShiftId(shiftId);
+        String message = String.format(
+                "The shift on %s from %s to %s at %s has been updated.",
+                shift.getShiftDate(), shift.getStartTime(), shift.getEndTime(),
+                shift.getLocation().getName()
+        );
+        for (ShiftAssignment assignment : assignments) {
+            notificationService.notifyUser(
+                    assignment.getEmployee().getUser().getId(),
+                    NotificationType.SHIFT_CHANGED,
+                    message,
+                    "SHIFT",
+                    shift.getId()
+            );
+        }
+
+        return toResponse(shift);
     }
 
     @Override

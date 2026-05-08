@@ -4,6 +4,7 @@ import com.shiftsync.shiftsync.shift.dto.CreateShiftRequest;
 import com.shiftsync.shiftsync.shift.dto.EmployeeShiftResponse;
 import com.shiftsync.shiftsync.shift.dto.LocationShiftPageResponse;
 import com.shiftsync.shiftsync.shift.dto.ShiftResponse;
+import com.shiftsync.shiftsync.shift.dto.UpdateShiftRequest;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -18,6 +19,16 @@ public interface ShiftService {
      * @return the created shift response
      */
     ShiftResponse createShift(Long actorUserId, CreateShiftRequest request);
+
+    /**
+     * Updates mutable fields on an existing open shift and notifies all assigned employees.
+     *
+     * @param actorUserId the ID of the authenticated user performing the update
+     * @param shiftId     the shift to update
+     * @param request     partial update — only non-null fields are applied
+     * @return the updated shift response
+     */
+    ShiftResponse updateShift(Long actorUserId, Long shiftId, UpdateShiftRequest request);
 
     /**
      * Cancels a shift and notifies all assigned employees.
