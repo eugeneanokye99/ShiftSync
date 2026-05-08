@@ -2,6 +2,9 @@ package com.shiftsync.shiftsync.report.service.impl;
 
 import com.shiftsync.shiftsync.report.dto.CoverageReportEntry;
 import com.shiftsync.shiftsync.report.dto.CoverageReportPageResponse;
+import com.shiftsync.shiftsync.report.dto.OvertimeReportEntry;
+import com.shiftsync.shiftsync.report.dto.OvertimeReportPageResponse;
+import com.shiftsync.shiftsync.report.dto.OvertimeShiftEntry;
 import com.shiftsync.shiftsync.report.service.ReportService;
 import com.shiftsync.shiftsync.shift.entity.Shift;
 import com.shiftsync.shiftsync.shift.entity.ShiftAssignment;
@@ -13,9 +16,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -29,7 +38,7 @@ public class ReportServiceImpl implements ReportService {
     @Override
     @Transactional(readOnly = true)
     public CoverageReportPageResponse getCoverageReport(Long locationId, LocalDate from, LocalDate to, int page, int size) {
-        List<CoverageReportEntry> all = getAllCoverageEntries(locationId, from, to);
+        List<CoverageReportEntry> all = fetchCoverageEntries(locationId, from, to);
         int totalElements = all.size();
         int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
         int start = page * size;
@@ -42,6 +51,29 @@ public class ReportServiceImpl implements ReportService {
     @Override
     @Transactional(readOnly = true)
     public List<CoverageReportEntry> getAllCoverageEntries(Long locationId, LocalDate from, LocalDate to) {
+        return fetchCoverageEntries(locationId, from, to);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public OvertimeReportPageResponse getOvertimeReport(Long locationId, LocalDate from, LocalDate to, int page, int size) {
+        List<OvertimeReportEntry> all = fetchOvertimeEntries(locationId, from, to);
+        int totalElements = all.size();
+        int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
+        int start = page * size;
+        List<OvertimeReportEntry> content = start >= totalElements
+                ? List.of()
+                : all.subList(start, Math.min(start + size, totalElements));
+        return new OvertimeReportPageResponse(content, totalElements, totalPages, page);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OvertimeReportEntry> getAllOvertimeEntries(Long locationId, LocalDate from, LocalDate to) {
+        return fetchOvertimeEntries(locationId, from, to);
+    }
+
+    private List<CoverageReportEntry> fetchCoverageEntries(Long locationId, LocalDate from, LocalDate to) {
         List<Shift> shifts = shiftRepository.findByLocationInRange(locationId, from, to)
                 .stream()
                 .filter(s -> s.getStatus() != ShiftStatus.CANCELLED)
@@ -64,7 +96,7 @@ public class ReportServiceImpl implements ReportService {
                     int assignedCount = assignments.size();
                     List<String> employeeNames = assignments.stream()
                             .map(a -> a.getEmployee().getUser().getFullName())
-                            .collect(Collectors.toList());
+                            .toList();
                     return new CoverageReportEntry(
                             shift.getId(),
                             shift.getShiftDate(),
@@ -77,7 +109,73 @@ public class ReportServiceImpl implements ReportService {
                             employeeNames
                     );
                 })
-                .collect(Collectors.toList());
+                .toList();
+    }
+
+    private List<OvertimeReportEntry> fetchOvertimeEntries(Long locationId, LocalDate from, LocalDate to) {
+        List<ShiftAssignment> assignments = shiftAssignmentRepository
+                .findAllInDateRangeByOptionalLocation(from, to, ShiftStatus.CANCELLED, locationId);
+
+        long daysInPeriod = ChronoUnit.DAYS.between(from, to) + 1;
+
+        return assignments.stream()
+                .collect(Collectors.groupingBy(a -> a.getEmployee().getId()))
+                .values()
+                .stream()
+                .map(employeeAssignments -> {
+                    ShiftAssignment first = employeeAssignments.getFirst();
+                    BigDecimal contractedWeeklyHours = first.getEmployee().getContractedWeeklyHours();
+
+                    BigDecimal expectedHours = contractedWeeklyHours
+                            .multiply(BigDecimal.valueOf(daysInPeriod))
+                            .divide(BigDecimal.valueOf(7), 2, RoundingMode.HALF_UP);
+
+                    BigDecimal actualHours = employeeAssignments.stream()
+                            .map(a -> {
+                                long minutes = Duration.between(
+                                        a.getShift().getStartTime(), a.getShift().getEndTime()
+                                ).toMinutes();
+                                return BigDecimal.valueOf(minutes)
+                                        .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
+                            })
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    BigDecimal overage = actualHours.subtract(expectedHours);
+                    if (overage.compareTo(BigDecimal.ZERO) <= 0) {
+                        return null;
+                    }
+
+                    List<OvertimeShiftEntry> contributingShifts = employeeAssignments.stream()
+                            .map(a -> {
+                                Shift shift = a.getShift();
+                                long minutes = Duration.between(shift.getStartTime(), shift.getEndTime()).toMinutes();
+                                BigDecimal hours = BigDecimal.valueOf(minutes)
+                                        .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
+                                return new OvertimeShiftEntry(
+                                        shift.getId(),
+                                        shift.getShiftDate(),
+                                        shift.getStartTime(),
+                                        shift.getEndTime(),
+                                        shift.getLocation().getName(),
+                                        shift.getDepartment().getName(),
+                                        hours
+                                );
+                            })
+                            .sorted(Comparator.comparing(OvertimeShiftEntry::date))
+                            .toList();
+
+                    return new OvertimeReportEntry(
+                            first.getEmployee().getId(),
+                            first.getEmployee().getUser().getFullName(),
+                            contractedWeeklyHours,
+                            actualHours,
+                            overage,
+                            contributingShifts
+                    );
+                })
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(OvertimeReportEntry::overtimeHours).reversed())
+                .toList();
     }
 
     private StaffingStatus resolveStaffingStatus(int assignedCount, int minimumHeadcount) {
