@@ -17,6 +17,7 @@ import com.shiftsync.shiftsync.shift.entity.Shift;
 import com.shiftsync.shiftsync.shift.entity.ShiftAssignment;
 import com.shiftsync.shiftsync.shift.entity.ShiftStatus;
 import com.shiftsync.shiftsync.shift.entity.StaffingStatus;
+import com.shiftsync.shiftsync.common.exception.BadRequestException;
 import com.shiftsync.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shiftsync.shift.repository.ShiftRepository;
 import lombok.RequiredArgsConstructor;
@@ -82,6 +83,9 @@ public class ReportServiceImpl implements ReportService {
     }
 
     private List<CoverageReportEntry> fetchCoverageEntries(Long locationId, LocalDate from, LocalDate to) {
+        if (from.isAfter(to)) {
+            throw new BadRequestException("'from' date must not be after 'to' date");
+        }
         List<Shift> shifts = shiftRepository.findByLocationInRange(locationId, from, to)
                 .stream()
                 .filter(s -> s.getStatus() != ShiftStatus.CANCELLED)
@@ -121,6 +125,9 @@ public class ReportServiceImpl implements ReportService {
     }
 
     private List<OvertimeReportEntry> fetchOvertimeEntries(Long locationId, LocalDate from, LocalDate to) {
+        if (from.isAfter(to)) {
+            throw new BadRequestException("'from' date must not be after 'to' date");
+        }
         List<ShiftAssignment> assignments = shiftAssignmentRepository
                 .findAllInDateRangeByOptionalLocation(from, to, ShiftStatus.CANCELLED, locationId);
 
@@ -207,6 +214,9 @@ public class ReportServiceImpl implements ReportService {
     }
 
     private LeaveUtilizationReportResponse fetchLeaveData(Long locationId, LocalDate from, LocalDate to) {
+        if (from.isAfter(to)) {
+            throw new BadRequestException("'from' date must not be after 'to' date");
+        }
         List<LeaveRequest> leaveRequests = leaveRequestRepository
                 .findByStatusInRangeByOptionalLocation(from, to, LeaveStatus.APPROVED, locationId);
 
