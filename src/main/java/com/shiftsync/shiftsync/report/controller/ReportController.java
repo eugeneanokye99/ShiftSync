@@ -4,6 +4,7 @@ import com.shiftsync.shiftsync.common.response.ErrorResponse;
 import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.report.dto.CoverageReportEntry;
 import com.shiftsync.shiftsync.report.dto.CoverageReportPageResponse;
+import com.shiftsync.shiftsync.report.dto.LeaveUtilizationReportResponse;
 import com.shiftsync.shiftsync.report.dto.OvertimeReportEntry;
 import com.shiftsync.shiftsync.report.dto.OvertimeReportPageResponse;
 import com.shiftsync.shiftsync.report.exporter.CsvExporter;
@@ -142,5 +143,54 @@ public class ReportController {
                 .header("Content-Disposition", "attachment; filename=\"overtime-report.csv\"")
                 .contentType(MediaType.parseMediaType("text/csv"))
                 .body(csvExporter.toOvertimeCsv(entries));
+    }
+
+    @GetMapping(value = "/leave", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasRole('HR_ADMIN')")
+    @Operation(
+            summary = "Leave utilization report (JSON)",
+            description = "Returns a paginated per-employee leave breakdown with department-level aggregates. locationId is optional."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Leave utilization report returned",
+                    content = @Content(schema = @Schema(implementation = LeaveUtilizationReportResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<LeaveUtilizationReportResponse> getLeaveReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long locationId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(reportService.getLeaveReport(locationId, from, to, page, size));
+    }
+
+    @GetMapping(value = "/leave", produces = "text/csv")
+    @PreAuthorize("hasRole('HR_ADMIN')")
+    @Operation(
+            summary = "Leave utilization report (CSV)",
+            description = "Returns the full leave utilization report with department aggregates as a downloadable CSV file."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Leave utilization CSV returned"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<String> getLeaveReportCsv(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long locationId
+    ) {
+        LeaveUtilizationReportResponse data = reportService.getAllLeaveData(locationId, from, to);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"leave-utilization-report.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(csvExporter.toLeaveCsv(data.employees(), data.departmentAggregates()));
     }
 }
