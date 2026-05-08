@@ -4,6 +4,8 @@ import com.shiftsync.shiftsync.common.response.ErrorResponse;
 import com.shiftsync.shiftsync.common.util.AuthenticationHelper;
 import com.shiftsync.shiftsync.report.dto.CoverageReportEntry;
 import com.shiftsync.shiftsync.report.dto.CoverageReportPageResponse;
+import com.shiftsync.shiftsync.report.dto.OvertimeReportEntry;
+import com.shiftsync.shiftsync.report.dto.OvertimeReportPageResponse;
 import com.shiftsync.shiftsync.report.exporter.CsvExporter;
 import com.shiftsync.shiftsync.report.service.ReportService;
 import com.shiftsync.shiftsync.shift.service.ShiftService;
@@ -91,5 +93,54 @@ public class ReportController {
                 .header("Content-Disposition", "attachment; filename=\"coverage-report.csv\"")
                 .contentType(MediaType.parseMediaType("text/csv"))
                 .body(csvExporter.toCoverageCsv(entries));
+    }
+
+    @GetMapping(value = "/overtime", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasRole('HR_ADMIN')")
+    @Operation(
+            summary = "Overtime report (JSON)",
+            description = "Returns a paginated list of employees who exceeded contracted hours in the period, sorted by overage descending. locationId is optional."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Overtime report returned",
+                    content = @Content(schema = @Schema(implementation = OvertimeReportPageResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<OvertimeReportPageResponse> getOvertimeReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long locationId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return ResponseEntity.ok(reportService.getOvertimeReport(locationId, from, to, page, size));
+    }
+
+    @GetMapping(value = "/overtime", produces = "text/csv")
+    @PreAuthorize("hasRole('HR_ADMIN')")
+    @Operation(
+            summary = "Overtime report (CSV)",
+            description = "Returns the full overtime report for a pay period as a downloadable CSV file."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Overtime CSV returned"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Forbidden",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public ResponseEntity<String> getOvertimeReportCsv(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long locationId
+    ) {
+        List<OvertimeReportEntry> entries = reportService.getAllOvertimeEntries(locationId, from, to);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"overtime-report.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(csvExporter.toOvertimeCsv(entries));
     }
 }
