@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * The interface Leave request repository.
@@ -39,6 +40,25 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate,
             @Param("statuses") Collection<LeaveStatus> statuses
+    );
+
+    @Query("""
+            select lr
+            from LeaveRequest lr
+            join fetch lr.employee e
+            join fetch e.user u
+            join fetch e.department d
+            where lr.status = :status
+              and lr.startDate <= :to
+              and lr.endDate >= :from
+              and (:locationId is null or e.location.id = :locationId)
+            order by e.id asc
+            """)
+    List<LeaveRequest> findByStatusInRangeByOptionalLocation(
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to,
+            @Param("status") LeaveStatus status,
+            @Param("locationId") Long locationId
     );
 }
 

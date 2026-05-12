@@ -6,7 +6,7 @@ public record PendingLeaveRequestPageResponse(
         List<PendingLeaveRequestResponse> content,
         long totalElements,
         int totalPages,
-        int currentPage
+        int page
 ) {
 }
 

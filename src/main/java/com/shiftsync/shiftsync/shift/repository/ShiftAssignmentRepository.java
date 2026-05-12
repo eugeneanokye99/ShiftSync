@@ -127,4 +127,24 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             @Param("startTime") LocalTime startTime,
             @Param("endTime") LocalTime endTime
     );
+
+    @Query("""
+            select sa
+            from ShiftAssignment sa
+            join fetch sa.employee e
+            join fetch e.user u
+            join fetch sa.shift s
+            join fetch s.location
+            join fetch s.department
+            where s.shiftDate >= :from
+              and s.shiftDate <= :to
+              and s.status <> com.shiftsync.shiftsync.shift.entity.ShiftStatus.CANCELLED
+              and (:locationId is null or e.location.id = :locationId)
+            order by e.id asc
+            """)
+    List<ShiftAssignment> findAllInDateRangeByOptionalLocation(
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to,
+            @Param("locationId") Long locationId
+    );
 }
