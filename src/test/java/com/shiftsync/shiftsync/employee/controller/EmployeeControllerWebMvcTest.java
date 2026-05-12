@@ -194,7 +194,7 @@ class EmployeeControllerWebMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.totalPages").value(1))
-                .andExpect(jsonPath("$.currentPage").value(0))
+                .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.content[0].employeeId").value(10));
     }
 

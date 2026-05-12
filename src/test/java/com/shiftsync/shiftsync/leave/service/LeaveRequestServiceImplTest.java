@@ -238,7 +238,7 @@ class LeaveRequestServiceImplTest {
 
         assertThat(result.totalElements()).isEqualTo(1);
         assertThat(result.totalPages()).isEqualTo(1);
-        assertThat(result.currentPage()).isEqualTo(0);
+        assertThat(result.page()).isEqualTo(0);
         assertThat(result.content()).hasSize(1);
         assertThat(result.content().getFirst().employeeName()).isEqualTo("Employee One");
     }

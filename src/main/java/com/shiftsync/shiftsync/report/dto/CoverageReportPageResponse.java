@@ -6,6 +6,6 @@ public record CoverageReportPageResponse(
         List<CoverageReportEntry> content,
         int totalElements,
         int totalPages,
-        int currentPage
+        int page
 ) {
 }

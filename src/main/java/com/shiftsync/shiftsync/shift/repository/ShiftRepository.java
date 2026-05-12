@@ -2,6 +2,8 @@ package com.shiftsync.shiftsync.shift.repository;
 
 import com.shiftsync.shiftsync.shift.entity.Shift;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -36,5 +38,30 @@ public interface ShiftRepository extends JpaRepository<Shift, Long> {
             @Param("locationId") Long locationId,
             @Param("from") LocalDate from,
             @Param("to") LocalDate to
+    );
+
+    @Query(value = """
+            select s
+            from Shift s
+            join fetch s.location
+            join fetch s.department
+            where s.location.id = :locationId
+              and s.shiftDate >= :from
+              and s.shiftDate <= :to
+              and s.status <> com.shiftsync.shiftsync.shift.entity.ShiftStatus.CANCELLED
+            """,
+            countQuery = """
+            select count(s)
+            from Shift s
+            where s.location.id = :locationId
+              and s.shiftDate >= :from
+              and s.shiftDate <= :to
+              and s.status <> com.shiftsync.shiftsync.shift.entity.ShiftStatus.CANCELLED
+            """)
+    Page<Shift> findActiveByLocationInRange(
+            @Param("locationId") Long locationId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to,
+            Pageable pageable
     );
 }

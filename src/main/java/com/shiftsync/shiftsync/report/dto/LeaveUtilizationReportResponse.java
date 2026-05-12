@@ -6,7 +6,7 @@ public record LeaveUtilizationReportResponse(
         List<LeaveEmployeeEntry> employees,
         int totalElements,
         int totalPages,
-        int currentPage,
+        int page,
         List<DepartmentLeaveAggregate> departmentAggregates
 ) {
 }

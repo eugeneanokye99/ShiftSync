@@ -138,14 +138,13 @@ public interface ShiftAssignmentRepository extends JpaRepository<ShiftAssignment
             join fetch s.department
             where s.shiftDate >= :from
               and s.shiftDate <= :to
-              and s.status <> :cancelled
+              and s.status <> com.shiftsync.shiftsync.shift.entity.ShiftStatus.CANCELLED
               and (:locationId is null or e.location.id = :locationId)
             order by e.id asc
             """)
     List<ShiftAssignment> findAllInDateRangeByOptionalLocation(
             @Param("from") LocalDate from,
             @Param("to") LocalDate to,
-            @Param("cancelled") ShiftStatus cancelled,
             @Param("locationId") Long locationId
     );
 }

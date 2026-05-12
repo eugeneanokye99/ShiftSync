@@ -6,6 +6,6 @@ public record OvertimeReportPageResponse(
         List<OvertimeReportEntry> content,
         int totalElements,
         int totalPages,
-        int currentPage
+        int page
 ) {
 }

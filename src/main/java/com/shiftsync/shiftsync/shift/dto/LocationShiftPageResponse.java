@@ -6,6 +6,6 @@ public record LocationShiftPageResponse(
         List<LocationShiftResponse> content,
         int totalElements,
         int totalPages,
-        int currentPage
+        int page
 ) {
 }

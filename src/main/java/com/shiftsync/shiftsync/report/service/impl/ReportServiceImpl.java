@@ -21,6 +21,9 @@ import com.shiftsync.shiftsync.common.exception.BadRequestException;
 import com.shiftsync.shiftsync.shift.repository.ShiftAssignmentRepository;
 import com.shiftsync.shiftsync.shift.repository.ShiftRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,14 +50,41 @@ public class ReportServiceImpl implements ReportService {
     @Override
     @Transactional(readOnly = true)
     public CoverageReportPageResponse getCoverageReport(Long locationId, LocalDate from, LocalDate to, int page, int size) {
-        List<CoverageReportEntry> all = fetchCoverageEntries(locationId, from, to);
-        int totalElements = all.size();
-        int totalPages = size > 0 ? (int) Math.ceil((double) totalElements / size) : 0;
-        int start = page * size;
-        List<CoverageReportEntry> content = start >= totalElements
-                ? List.of()
-                : all.subList(start, Math.min(start + size, totalElements));
-        return new CoverageReportPageResponse(content, totalElements, totalPages, page);
+        if (from.isAfter(to)) {
+            throw new BadRequestException("'from' date must not be after 'to' date");
+        }
+        PageRequest pageable = PageRequest.of(page, size, Sort.by("shiftDate", "startTime"));
+        Page<Shift> shiftPage = shiftRepository.findActiveByLocationInRange(locationId, from, to, pageable);
+
+        Set<Long> shiftIds = shiftPage.getContent().stream().map(Shift::getId).collect(Collectors.toSet());
+        Map<Long, List<ShiftAssignment>> assignmentsByShift = shiftIds.isEmpty()
+                ? Map.of()
+                : shiftAssignmentRepository.findAssignmentsByShiftIds(shiftIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(a -> a.getShift().getId()));
+
+        List<CoverageReportEntry> content = shiftPage.getContent().stream()
+                .map(shift -> {
+                    List<ShiftAssignment> assignments = assignmentsByShift.getOrDefault(shift.getId(), List.of());
+                    int assignedCount = assignments.size();
+                    List<String> employeeNames = assignments.stream()
+                            .map(a -> a.getEmployee().getUser().getFullName())
+                            .toList();
+                    return new CoverageReportEntry(
+                            shift.getId(),
+                            shift.getShiftDate(),
+                            shift.getStartTime(),
+                            shift.getEndTime(),
+                            shift.getDepartment().getName(),
+                            shift.getMinimumHeadcount(),
+                            assignedCount,
+                            resolveStaffingStatus(assignedCount, shift.getMinimumHeadcount()),
+                            employeeNames
+                    );
+                })
+                .toList();
+
+        return new CoverageReportPageResponse(content, (int) shiftPage.getTotalElements(), shiftPage.getTotalPages(), page);
     }
 
     @Override
@@ -128,8 +158,12 @@ public class ReportServiceImpl implements ReportService {
         if (from.isAfter(to)) {
             throw new BadRequestException("'from' date must not be after 'to' date");
         }
+        // Grouping by employee to compute per-employee hour totals cannot be pushed into SQL without
+        // a complex window-function query. The in-memory approach is acceptable here because the
+        // result set is bounded by the date range and location filter. Performance depends on the
+        // composite index on (shift_assignment.shift_date, shift_assignment.employee_id).
         List<ShiftAssignment> assignments = shiftAssignmentRepository
-                .findAllInDateRangeByOptionalLocation(from, to, ShiftStatus.CANCELLED, locationId);
+                .findAllInDateRangeByOptionalLocation(from, to, locationId);
 
         long daysInPeriod = ChronoUnit.DAYS.between(from, to) + 1;
 

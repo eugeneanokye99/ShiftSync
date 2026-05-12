@@ -32,6 +32,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -41,6 +45,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -76,7 +81,8 @@ class ReportServiceImplTest {
     void getCoverageReport_WithOpenShiftsAndAssignees_ReturnsCorrectEntry() {
         ShiftAssignment assignment = buildAssignment(1L, shift, employee);
 
-        when(shiftRepository.findByLocationInRange(10L, FROM, TO)).thenReturn(List.of(shift));
+        when(shiftRepository.findActiveByLocationInRange(eq(10L), eq(FROM), eq(TO), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(shift)));
         when(shiftAssignmentRepository.findAssignmentsByShiftIds(any())).thenReturn(List.of(assignment));
 
         CoverageReportPageResponse response = reportService.getCoverageReport(10L, FROM, TO, 0, 20);
@@ -92,19 +98,9 @@ class ReportServiceImplTest {
     }
 
     @Test
-    void getCoverageReport_CancelledShift_ExcludedFromReport() {
-        shift.setStatus(ShiftStatus.CANCELLED);
-        when(shiftRepository.findByLocationInRange(10L, FROM, TO)).thenReturn(List.of(shift));
-
-        CoverageReportPageResponse response = reportService.getCoverageReport(10L, FROM, TO, 0, 20);
-
-        assertThat(response.totalElements()).isEqualTo(0);
-        assertThat(response.content()).isEmpty();
-    }
-
-    @Test
-    void getCoverageReport_NoShifts_ReturnsEmptyPage() {
-        when(shiftRepository.findByLocationInRange(10L, FROM, TO)).thenReturn(List.of());
+    void getCoverageReport_NoActiveShifts_ReturnsEmptyPage() {
+        when(shiftRepository.findActiveByLocationInRange(eq(10L), eq(FROM), eq(TO), any(Pageable.class)))
+                .thenReturn(Page.empty());
 
         CoverageReportPageResponse response = reportService.getCoverageReport(10L, FROM, TO, 0, 20);
 
@@ -114,20 +110,18 @@ class ReportServiceImplTest {
     }
 
     @Test
-    void getCoverageReport_PaginationSlicesCorrectly() {
+    void getCoverageReport_ReturnsPageMetadataFromRepository() {
         Shift s2 = buildShift(51L, LocalDate.of(2026, 6, 2), LocalTime.of(10, 0), LocalTime.of(18, 0), 1);
-        Shift s3 = buildShift(52L, LocalDate.of(2026, 6, 3), LocalTime.of(10, 0), LocalTime.of(18, 0), 1);
 
-        when(shiftRepository.findByLocationInRange(10L, FROM, TO)).thenReturn(List.of(shift, s2, s3));
+        when(shiftRepository.findActiveByLocationInRange(eq(10L), eq(FROM), eq(TO), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(shift, s2), PageRequest.of(0, 2), 5));
         when(shiftAssignmentRepository.findAssignmentsByShiftIds(any())).thenReturn(List.of());
 
-        CoverageReportPageResponse page0 = reportService.getCoverageReport(10L, FROM, TO, 0, 2);
-        CoverageReportPageResponse page1 = reportService.getCoverageReport(10L, FROM, TO, 1, 2);
+        CoverageReportPageResponse response = reportService.getCoverageReport(10L, FROM, TO, 0, 2);
 
-        assertThat(page0.content()).hasSize(2);
-        assertThat(page0.totalElements()).isEqualTo(3);
-        assertThat(page0.totalPages()).isEqualTo(2);
-        assertThat(page1.content()).hasSize(1);
+        assertThat(response.content()).hasSize(2);
+        assertThat(response.totalElements()).isEqualTo(5);
+        assertThat(response.totalPages()).isEqualTo(3);
     }
 
     @Test
@@ -136,7 +130,8 @@ class ReportServiceImplTest {
         ShiftAssignment a1 = buildAssignment(1L, shift, employee);
         ShiftAssignment a2 = buildAssignment(2L, shift, buildEmployee(200L, u2));
 
-        when(shiftRepository.findByLocationInRange(10L, FROM, TO)).thenReturn(List.of(shift));
+        when(shiftRepository.findActiveByLocationInRange(eq(10L), eq(FROM), eq(TO), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(shift)));
         when(shiftAssignmentRepository.findAssignmentsByShiftIds(any())).thenReturn(List.of(a1, a2));
 
         CoverageReportPageResponse response = reportService.getCoverageReport(10L, FROM, TO, 0, 20);
@@ -152,7 +147,8 @@ class ReportServiceImplTest {
         ShiftAssignment a2 = buildAssignment(2L, shift, buildEmployee(200L, u2));
         ShiftAssignment a3 = buildAssignment(3L, shift, buildEmployee(300L, u3));
 
-        when(shiftRepository.findByLocationInRange(10L, FROM, TO)).thenReturn(List.of(shift));
+        when(shiftRepository.findActiveByLocationInRange(eq(10L), eq(FROM), eq(TO), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(shift)));
         when(shiftAssignmentRepository.findAssignmentsByShiftIds(any())).thenReturn(List.of(a1, a2, a3));
 
         CoverageReportPageResponse response = reportService.getCoverageReport(10L, FROM, TO, 0, 20);
@@ -188,7 +184,7 @@ class ReportServiceImplTest {
         ShiftAssignment a1 = buildAssignment(1L, shift, employee);
         ShiftAssignment a2 = buildAssignment(2L, s2, employee);
 
-        when(shiftAssignmentRepository.findAllInDateRangeByOptionalLocation(FROM, TO, ShiftStatus.CANCELLED, null))
+        when(shiftAssignmentRepository.findAllInDateRangeByOptionalLocation(FROM, TO, null))
                 .thenReturn(List.of(a1, a2));
 
         OvertimeReportPageResponse response = reportService.getOvertimeReport(null, FROM, TO, 0, 20);
@@ -207,7 +203,7 @@ class ReportServiceImplTest {
         // contractedWeeklyHours=10, period=7 days → expected=10h; one 8h shift=8h < 10h
         ShiftAssignment a1 = buildAssignment(1L, shift, employee);
 
-        when(shiftAssignmentRepository.findAllInDateRangeByOptionalLocation(FROM, TO, ShiftStatus.CANCELLED, null))
+        when(shiftAssignmentRepository.findAllInDateRangeByOptionalLocation(FROM, TO, null))
                 .thenReturn(List.of(a1));
 
         OvertimeReportPageResponse response = reportService.getOvertimeReport(null, FROM, TO, 0, 20);
@@ -225,7 +221,7 @@ class ReportServiceImplTest {
         Shift s3 = buildShift(52L, LocalDate.of(2026, 6, 3), LocalTime.of(9, 0), LocalTime.of(17, 0), 1);
         Shift s4 = buildShift(53L, LocalDate.of(2026, 6, 4), LocalTime.of(9, 0), LocalTime.of(17, 0), 1);
 
-        when(shiftAssignmentRepository.findAllInDateRangeByOptionalLocation(FROM, TO, ShiftStatus.CANCELLED, null))
+        when(shiftAssignmentRepository.findAllInDateRangeByOptionalLocation(FROM, TO, null))
                 .thenReturn(List.of(
                         buildAssignment(1L, shift, employee),
                         buildAssignment(2L, s2, employee),
@@ -245,7 +241,7 @@ class ReportServiceImplTest {
 
     @Test
     void getOvertimeReport_NoAssignments_ReturnsEmptyPage() {
-        when(shiftAssignmentRepository.findAllInDateRangeByOptionalLocation(FROM, TO, ShiftStatus.CANCELLED, null))
+        when(shiftAssignmentRepository.findAllInDateRangeByOptionalLocation(FROM, TO, null))
                 .thenReturn(List.of());
 
         OvertimeReportPageResponse response = reportService.getOvertimeReport(null, FROM, TO, 0, 20);
@@ -259,7 +255,7 @@ class ReportServiceImplTest {
         Shift earlier = buildShift(51L, LocalDate.of(2026, 6, 3), LocalTime.of(9, 0), LocalTime.of(17, 0), 1);
         Shift later   = buildShift(52L, LocalDate.of(2026, 6, 5), LocalTime.of(9, 0), LocalTime.of(17, 0), 1);
 
-        when(shiftAssignmentRepository.findAllInDateRangeByOptionalLocation(FROM, TO, ShiftStatus.CANCELLED, null))
+        when(shiftAssignmentRepository.findAllInDateRangeByOptionalLocation(FROM, TO, null))
                 .thenReturn(List.of(
                         buildAssignment(1L, shift, employee),
                         buildAssignment(2L, later, employee),
