@@ -32,7 +32,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -100,7 +99,7 @@ class ReportServiceImplTest {
     @Test
     void getCoverageReport_NoActiveShifts_ReturnsEmptyPage() {
         when(shiftRepository.findActiveByLocationInRange(eq(10L), eq(FROM), eq(TO), any(Pageable.class)))
-                .thenReturn(Page.empty());
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
 
         CoverageReportPageResponse response = reportService.getCoverageReport(10L, FROM, TO, 0, 20);
 
