@@ -65,6 +65,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").hasRole("HR_ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/employees").hasRole("HR_ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/employees").hasAnyRole("HR_ADMIN", "MANAGER")
+                        .requestMatchers("/api/v1/audit-logs/**").hasRole("HR_ADMIN")
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())
