@@ -1,5 +1,7 @@
 package com.shiftsync.shiftsync.leave.service;
 
+import com.shiftsync.shiftsync.audit.annotation.Auditable;
+import com.shiftsync.shiftsync.common.enums.AuditAction;
 import com.shiftsync.shiftsync.leave.dto.ApproveLeaveRequest;
 import com.shiftsync.shiftsync.leave.dto.CreateLeaveRequest;
 import com.shiftsync.shiftsync.leave.dto.GetLeaveRequestsRequest;
@@ -19,6 +21,7 @@ public interface LeaveRequestService {
      * @param request     the request
      * @return the leave request response
      */
+    @Auditable(entityType = "LEAVE_REQUEST", action = AuditAction.CREATE)
     LeaveRequestResponse createLeaveRequest(Long actorUserId, CreateLeaveRequest request);
 
     /**
@@ -29,6 +32,7 @@ public interface LeaveRequestService {
      * @param request        the request
      * @return the leave request response
      */
+    @Auditable(entityType = "LEAVE_REQUEST", action = AuditAction.UPDATE, entityIdParam = 1)
     LeaveRequestResponse approveLeaveRequest(Long actorUserId, Long leaveRequestId, ApproveLeaveRequest request);
 
     /**
@@ -39,6 +43,7 @@ public interface LeaveRequestService {
      * @param request        the request
      * @return the leave request response
      */
+    @Auditable(entityType = "LEAVE_REQUEST", action = AuditAction.UPDATE, entityIdParam = 1)
     LeaveRequestResponse rejectLeaveRequest(Long actorUserId, Long leaveRequestId, RejectLeaveRequest request);
 
     /**
@@ -48,6 +53,7 @@ public interface LeaveRequestService {
      * @param leaveRequestId the leave request id
      * @return the leave request response
      */
+    @Auditable(entityType = "LEAVE_REQUEST", action = AuditAction.UPDATE, entityIdParam = 1)
     LeaveRequestResponse cancelLeaveRequest(Long actorUserId, Long leaveRequestId);
 
     /**

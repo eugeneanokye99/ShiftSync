@@ -1,5 +1,7 @@
 package com.shiftsync.shiftsync.shift.service;
 
+import com.shiftsync.shiftsync.audit.annotation.Auditable;
+import com.shiftsync.shiftsync.common.enums.AuditAction;
 import com.shiftsync.shiftsync.shift.dto.AssignEmployeeRequest;
 import com.shiftsync.shiftsync.shift.dto.AssignEmployeeResponse;
 
@@ -17,6 +19,7 @@ public interface ShiftAssignmentService {
      * @param override    the override
      * @return the assign employee response
      */
+    @Auditable(entityType = "SHIFT_ASSIGNMENT", action = AuditAction.CREATE, entityIdParam = 1)
     AssignEmployeeResponse assignEmployee(Long actorUserId, Long shiftId, AssignEmployeeRequest request, boolean override);
 
     /**
@@ -26,6 +29,7 @@ public interface ShiftAssignmentService {
      * @param shiftId     the shift ID
      * @param employeeId  the employee ID to remove
      */
+    @Auditable(entityType = "SHIFT_ASSIGNMENT", action = AuditAction.DELETE, entityIdParam = 1)
     void removeAssignment(Long actorUserId, Long shiftId, Long employeeId);
 }
 

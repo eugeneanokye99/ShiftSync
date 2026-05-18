@@ -1,5 +1,7 @@
 package com.shiftsync.shiftsync.shift.service;
 
+import com.shiftsync.shiftsync.audit.annotation.Auditable;
+import com.shiftsync.shiftsync.common.enums.AuditAction;
 import com.shiftsync.shiftsync.shift.dto.CreateShiftRequest;
 import com.shiftsync.shiftsync.shift.dto.EmployeeShiftResponse;
 import com.shiftsync.shiftsync.shift.dto.LocationShiftPageResponse;
@@ -18,6 +20,7 @@ public interface ShiftService {
      * @param request     the shift creation request
      * @return the created shift response
      */
+    @Auditable(entityType = "SHIFT", action = AuditAction.CREATE)
     ShiftResponse createShift(Long actorUserId, CreateShiftRequest request);
 
     /**
@@ -28,6 +31,7 @@ public interface ShiftService {
      * @param request     partial update — only non-null fields are applied
      * @return the updated shift response
      */
+    @Auditable(entityType = "SHIFT", action = AuditAction.UPDATE, entityIdParam = 1)
     ShiftResponse updateShift(Long actorUserId, Long shiftId, UpdateShiftRequest request);
 
     /**
@@ -36,6 +40,7 @@ public interface ShiftService {
      * @param actorUserId the ID of the authenticated user performing the cancel
      * @param shiftId     the shift to cancel
      */
+    @Auditable(entityType = "SHIFT", action = AuditAction.UPDATE, entityIdParam = 1)
     void cancelShift(Long actorUserId, Long shiftId);
 
     /**

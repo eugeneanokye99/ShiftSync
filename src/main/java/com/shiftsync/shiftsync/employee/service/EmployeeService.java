@@ -1,5 +1,7 @@
 package com.shiftsync.shiftsync.employee.service;
 
+import com.shiftsync.shiftsync.audit.annotation.Auditable;
+import com.shiftsync.shiftsync.common.enums.AuditAction;
 import com.shiftsync.shiftsync.employee.dto.CreateEmployeeRequest;
 import com.shiftsync.shiftsync.employee.dto.EmployeePageResponse;
 import com.shiftsync.shiftsync.employee.dto.EmployeeResponse;
@@ -17,6 +19,7 @@ public interface EmployeeService {
      * @param request the request
      * @return the employee response
      */
+    @Auditable(entityType = "EMPLOYEE", action = AuditAction.CREATE)
     EmployeeResponse createEmployee(CreateEmployeeRequest request);
 
     /**
@@ -42,6 +45,7 @@ public interface EmployeeService {
      * @param request     the request
      * @return the employee response
      */
+    @Auditable(entityType = "EMPLOYEE", action = AuditAction.UPDATE, entityIdParam = 0)
     EmployeeResponse updateMyProfile(Long actorUserId, UpdateMyProfileRequest request);
 
     /**
@@ -60,6 +64,7 @@ public interface EmployeeService {
      * @param employeeId the employee id
      * @return the employee response
      */
+    @Auditable(entityType = "EMPLOYEE", action = AuditAction.UPDATE, entityIdParam = 0)
     EmployeeResponse deactivateEmployee(Long employeeId);
 }
 

@@ -1,5 +1,7 @@
 package com.shiftsync.shiftsync.shift.service;
 
+import com.shiftsync.shiftsync.audit.annotation.Auditable;
+import com.shiftsync.shiftsync.common.enums.AuditAction;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapRequest;
 import com.shiftsync.shiftsync.shift.dto.ShiftSwapResponse;
 import com.shiftsync.shiftsync.shift.entity.ShiftSwapStatus;
@@ -18,6 +20,7 @@ public interface ShiftSwapService {
      * @param request     the request
      * @return the shift swap response
      */
+    @Auditable(entityType = "SHIFT_SWAP", action = AuditAction.CREATE)
     ShiftSwapResponse requestSwap(Long actorUserId, ShiftSwapRequest request);
 
     /**
@@ -26,6 +29,7 @@ public interface ShiftSwapService {
      * @param actorUserId the actor user id
      * @param swapId      the swap id
      */
+    @Auditable(entityType = "SHIFT_SWAP", action = AuditAction.UPDATE, entityIdParam = 1)
     void approveSwap(Long actorUserId, Long swapId);
 
     /**
@@ -35,6 +39,7 @@ public interface ShiftSwapService {
      * @param swapId      the swap id
      * @param managerNote the manager note
      */
+    @Auditable(entityType = "SHIFT_SWAP", action = AuditAction.UPDATE, entityIdParam = 1)
     void rejectSwap(Long actorUserId, Long swapId, String managerNote);
 
     /**
