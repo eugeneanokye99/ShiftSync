@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="004-001-ensure-availability-enums" author="shiftsync">
+        <sql>
+            DO $$ BEGIN
+                CREATE TYPE day_of_week AS ENUM (
+                    'MONDAY',
+                    'TUESDAY',
+                    'WEDNESDAY',
+                    'THURSDAY',
+                    'FRIDAY',
+                    'SATURDAY',
+                    'SUNDAY'
+                );
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+            DO $$ BEGIN
+                CREATE TYPE shift_status AS ENUM ('OPEN', 'CANCELLED');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+        </sql>
+    </changeSet>
+
+    <changeSet id="004-002-create-recurring-availability-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="recurring_availability"/>
+            </not>
+        </preConditions>
+        <createTable tableName="recurring_availability">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="employee_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_recurring_availability_employee"
+                             references="employees(id)" deleteCascade="true"/>
+            </column>
+            <column name="day_of_week" type="day_of_week">
+                <constraints nullable="false"/>
+            </column>
+            <column name="start_time" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_time" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql>
+            ALTER TABLE recurring_availability ADD CONSTRAINT check_time_order CHECK (end_time > start_time);
+        </sql>
+        <createIndex tableName="recurring_availability" indexName="idx_recurring_availability_employee">
+            <column name="employee_id"/>
+        </createIndex>
+        <createIndex tableName="recurring_availability" indexName="idx_recurring_availability_day">
+            <column name="day_of_week"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="004-003-create-availability-overrides-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="availability_overrides"/>
+            </not>
+        </preConditions>
+        <createTable tableName="availability_overrides">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="employee_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_availability_overrides_employee"
+                             references="employees(id)" deleteCascade="true"/>
+            </column>
+            <column name="start_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reason" type="text"/>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql>
+            ALTER TABLE availability_overrides ADD CONSTRAINT check_date_order CHECK (end_date >= start_date);
+        </sql>
+        <createIndex tableName="availability_overrides" indexName="idx_availability_overrides_employee">
+            <column name="employee_id"/>
+        </createIndex>
+        <createIndex tableName="availability_overrides" indexName="idx_availability_overrides_dates">
+            <column name="start_date"/>
+            <column name="end_date"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="004-004-create-shifts-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="shifts"/>
+            </not>
+        </preConditions>
+        <createTable tableName="shifts">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="location_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shifts_location"
+                             references="locations(id)" deleteCascade="true"/>
+            </column>
+            <column name="department_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shifts_department"
+                             references="departments(id)" deleteCascade="true"/>
+            </column>
+            <column name="shift_date" type="date">
+                <constraints nullable="false"/>
+            </column>
+            <column name="start_time" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_time" type="time">
+                <constraints nullable="false"/>
+            </column>
+            <column name="required_skill" type="varchar(255)"/>
+            <column name="minimum_headcount" type="integer" defaultValue="1">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="shift_status" defaultValue="OPEN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_by" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shifts_created_by" references="users(id)"/>
+            </column>
+            <column name="cancelled_at" type="timestamp"/>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql>
+            ALTER TABLE shifts ADD CONSTRAINT check_shift_time_order CHECK (end_time > start_time);
+        </sql>
+        <createIndex tableName="shifts" indexName="idx_shifts_location">
+            <column name="location_id"/>
+        </createIndex>
+        <createIndex tableName="shifts" indexName="idx_shifts_department">
+            <column name="department_id"/>
+        </createIndex>
+        <createIndex tableName="shifts" indexName="idx_shifts_date">
+            <column name="shift_date"/>
+        </createIndex>
+        <createIndex tableName="shifts" indexName="idx_shifts_status">
+            <column name="status"/>
+        </createIndex>
+        <createIndex tableName="shifts" indexName="idx_shifts_location_date">
+            <column name="location_id"/>
+            <column name="shift_date"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="004-005-create-shift-assignments-table" author="shiftsync">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="shift_assignments"/>
+            </not>
+        </preConditions>
+        <createTable tableName="shift_assignments">
+            <column name="id" type="bigserial">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="shift_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shift_assignments_shift"
+                             references="shifts(id)" deleteCascade="true"/>
+            </column>
+            <column name="employee_id" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shift_assignments_employee"
+                             references="employees(id)" deleteCascade="true"/>
+            </column>
+            <column name="assigned_by" type="bigint">
+                <constraints nullable="false" foreignKeyName="fk_shift_assignments_assigned_by"
+                             references="users(id)"/>
+            </column>
+            <column name="override_applied" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="override_reason" type="text"/>
+            <column name="assigned_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="shift_assignments" columnNames="shift_id, employee_id"
+                             constraintName="uk_shift_assignments"/>
+        <createIndex tableName="shift_assignments" indexName="idx_shift_assignments_shift">
+            <column name="shift_id"/>
+        </createIndex>
+        <createIndex tableName="shift_assignments" indexName="idx_shift_assignments_employee">
+            <column name="employee_id"/>
+        </createIndex>
+        <createIndex tableName="shift_assignments" indexName="idx_shift_assignments_assigned_at">
+            <column name="assigned_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
+

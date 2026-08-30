@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+tasks/
+.kiro/
+AGENT.md
+
+.env
+application-local.properties
